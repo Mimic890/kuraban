@@ -1,0 +1,169 @@
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { FolderIcon, Globe, Loader2, MoreVertical, Search, Settings, Trash2 } from 'lucide-react';
+import { formatBytes } from '@/lib/file-utils';
+import { formatDate } from '@/lib/utils';
+import { useBucketCan } from '@/hooks/usePermissions';
+import type { Bucket } from '@/types';
+import { useTranslation } from '@/lib/i18n';
+
+interface BucketListViewProps {
+  buckets: Bucket[];
+  searchQuery: string;
+  isLoading?: boolean;
+  onSearchChange: (query: string) => void;
+  onViewBucket: (bucketName: string) => void;
+  onOpenSettings: (bucket: Bucket) => void;
+  onDeleteBucket: (bucket: Bucket) => void;
+  onWebsiteSettings: (bucket: Bucket) => void;
+}
+
+export function BucketListView({
+  buckets,
+  searchQuery,
+  isLoading = false,
+  onSearchChange,
+  onViewBucket,
+  onOpenSettings,
+  onDeleteBucket,
+  onWebsiteSettings,
+}: BucketListViewProps) {
+  const { t, language } = useTranslation();
+  const canBucket = useBucketCan();
+  const filteredBuckets = buckets.filter((bucket) =>
+    bucket.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  return (
+    <div className="space-y-4 sm:space-y-6">
+      {/* Toolbar */}
+      <div className="relative w-full max-w-xs">
+        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder={t('buckets.list.search_placeholder')}
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          className="pl-8"
+        />
+      </div>
+
+      {/* Buckets Table */}
+      <div className="border rounded-lg overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('buckets.fields.name')}</TableHead>
+              <TableHead className="hidden sm:table-cell">{t('buckets.fields.region')}</TableHead>
+              <TableHead className="hidden md:table-cell">{t('buckets.fields.objects')}</TableHead>
+              <TableHead>{t('buckets.fields.size')}</TableHead>
+              <TableHead className="hidden lg:table-cell">{t('buckets.fields.created')}</TableHead>
+              <TableHead className="w-[50px]"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-12">
+                  <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span>{t('buckets.list.loading')}</span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : filteredBuckets.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                  {searchQuery ? t('buckets.list.empty_search') : t('buckets.list.empty')}
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredBuckets.map((bucket) => (
+                <TableRow
+                  key={bucket.name}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => onViewBucket(bucket.name)}
+                >
+                  <TableCell className="font-medium max-w-[200px]">
+                    <span className="truncate">{bucket.name}</span>
+                    {bucket.websiteAccess && (
+                      <Badge variant="neutral" className="text-xs ml-2">
+                        <Globe className="h-3 w-3 mr-1" />
+                        {t('buckets.fields.website')}
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    <Badge variant="neutral">{bucket.region || t('buckets.common.default')}</Badge>
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">{(bucket.objectCount ?? 0).toLocaleString(language)}</TableCell>
+                  <TableCell>{bucket.size ? formatBytes(bucket.size) : '0 B'}</TableCell>
+                  <TableCell className="hidden lg:table-cell">{formatDate(bucket.creationDate)}</TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="icon" className="-m-3 top-1 relative" aria-label={t('buckets.list.actions_menu', { bucket: bucket.name })}>
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={(e) => {
+                          e.stopPropagation();
+                          onViewBucket(bucket.name);
+                        }}>
+                          <FolderIcon className="h-4 w-4" />
+                          {t('buckets.actions.view_objects')}
+                        </DropdownMenuItem>
+                        {canBucket(bucket, 'bucket.update') && (
+                          <>
+                            <DropdownMenuItem onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenSettings(bucket);
+                            }}>
+                              <Settings className="h-4 w-4" />
+                              {t('buckets.tabs.settings')}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => {
+                              e.stopPropagation();
+                              onWebsiteSettings(bucket);
+                            }}>
+                              <Globe className="h-4 w-4" />
+                              {t('buckets.actions.website_settings')}
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                        {canBucket(bucket, 'bucket.delete') && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteBucket(bucket);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              {t('buckets.actions.delete')}
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}

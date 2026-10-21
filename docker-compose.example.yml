@@ -1,0 +1,47 @@
+services:
+  kuraban:
+    image: ghcr.io/mimic890/kuraban:latest
+    container_name: kuraban
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp]
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      # Persisted admin account, cluster list, web settings and metrics
+      # history (SQLite). Entrypoint chowns to uid 1000.
+      - kuraban_data:/app/data
+    environment:
+      # Minimal environment variables, just for server basics
+      - KURABAN_SERVER_HOST=0.0.0.0
+      - KURABAN_SERVER_PORT=8080
+      # Localhost-only example. Use production plus HTTPS behind a reverse proxy.
+      - KURABAN_SERVER_ENVIRONMENT=development
+      - KURABAN_SERVER_ROOT_URL=http://localhost:8080
+      - KURABAN_DATA_DIR=/app/data
+      # Initial log level; can be overridden later in Settings → Security & server.
+      - KURABAN_LOGGING_LEVEL=info # Options: trace, debug, info, warn, error
+      # Monitoring interval/retention, thresholds and IP allowlists are set in
+      # the web UI (Settings) and stored in /app/data/kuraban.db.
+      - KURABAN_AUTH_BOOTSTRAP_TOKEN=${KURABAN_AUTH_BOOTSTRAP_TOKEN:?set a strong one-time bootstrap token}
+      # Optional first-run Garage cluster bootstrap. Keep the token out of git;
+      # use an env file or Docker secret in real deployments.
+      # - KURABAN_GARAGE_ENDPOINT=http://garage:3900
+      # - KURABAN_GARAGE_ADMIN_ENDPOINT=http://garage:3903
+      # - KURABAN_GARAGE_REGION=garage
+      # - KURABAN_GARAGE_ADMIN_TOKEN=${KURABAN_GARAGE_ADMIN_TOKEN:?set Garage admin token}
+      # Optional first-run local admin bootstrap.
+      # - KURABAN_AUTH_ADMIN_USERNAME=${KURABAN_AUTH_ADMIN_USERNAME:?set admin username}
+      # - KURABAN_AUTH_ADMIN_PASSWORD=${KURABAN_AUTH_ADMIN_PASSWORD:?set admin password}
+      # - KURABAN_LOGGING_FORMAT=text # Options: text, json
+      # - KURABAN_SERVER_PROTOCOL=http
+      # - KURABAN_SERVER_ALLOWED_IPS=127.0.0.1,192.168.1.0/24
+      # - KURABAN_SERVER_MAX_BODY_SIZE=67108864 # 64MB
+      # - KURABAN_SERVER_MAX_HEADER_SIZE=32768 # 32KB
+      # - KURABAN_SERVER_READ_BUFFER_SIZE=4096 # 4KB
+      # - KURABAN_SERVER_WRITE_BUFFER_SIZE=4096 # 4KB
+
+volumes:
+  kuraban_data:

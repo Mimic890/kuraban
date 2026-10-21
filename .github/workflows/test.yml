@@ -1,0 +1,93 @@
+name: backend-tests
+
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'Dockerfile'
+      - 'Makefile'
+      - 'scripts/coverage-gate.sh'
+      - 'docker-compose*.yml'
+      - '.github/workflows/test.yml'
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: Unit tests + coverage gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: '1.26.6'
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Validate frontend
+        run: |
+          npm --prefix frontend ci --ignore-scripts
+          npm --prefix frontend audit --json > /tmp/npm-audit.json || true
+          # GHSA-qwww-vcr4-c8h2 affects React Router RSC actions. This SPA uses
+          # BrowserRouter only; fail on every other high/critical advisory.
+          jq -e 'del(.vulnerabilities["react-router"], .vulnerabilities["react-router-dom"]) | [.vulnerabilities[] | select(.severity == "high" or .severity == "critical")] | length == 0' /tmp/npm-audit.json
+          npm --prefix frontend run lint
+          npm --prefix frontend test -- --run
+          npm --prefix frontend run build
+
+      - name: Generate swagger docs
+        run: |
+          go install github.com/swaggo/swag/cmd/swag@v1.16.6
+          cd backend && swag init
+
+      - name: Run unit tests with race detector and coverage
+        run: |
+          cd backend
+          go test -race -count=1 -coverprofile=../coverage.out -coverpkg=./... ./...
+
+      - name: Scan Go dependencies
+        run: cd backend && go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
+
+      - name: Enforce coverage gate
+        run: bash scripts/coverage-gate.sh coverage.out
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage
+          path: coverage.out
+
+  smoke:
+    name: Smoke test (docker compose)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: '1.26.6'
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Run smoke test
+        run: make test-smoke
+
+      - name: Dump compose logs on failure
+        if: failure()
+        run: |
+          docker compose -p kuraban-smoke \
+            -f backend/tests/smoke/docker-compose.test.yml logs --no-color || true
+
+      - name: Tear down compose
+        if: always()
+        run: |
+          docker compose -p kuraban-smoke \
+            -f backend/tests/smoke/docker-compose.test.yml down -v || true

@@ -1,0 +1,40 @@
+---
+services:
+  garage:
+    image: dxflrs/garage:v2.1.0
+    volumes:
+      - ./garage.toml:/etc/garage.toml:ro
+    tmpfs:
+      - /var/lib/garage/meta
+      - /var/lib/garage/data
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 2s
+
+  backend:
+    build:
+      context: ../../..
+      dockerfile: Dockerfile
+    environment:
+      KURABAN_SERVER_HOST: "0.0.0.0"
+      KURABAN_SERVER_PORT: "8080"
+      KURABAN_SERVER_ROOT_URL: "http://127.0.0.1:18080"
+      KURABAN_SERVER_ENVIRONMENT: "development"
+      KURABAN_GARAGE_ENDPOINT: "garage:3900"
+      KURABAN_GARAGE_REGION: "garage"
+      KURABAN_GARAGE_ADMIN_ENDPOINT: "http://garage:3903"
+      KURABAN_GARAGE_ADMIN_TOKEN: "smoke-admin-token-do-not-use-in-prod"
+      KURABAN_AUTH_ADMIN_ENABLED: "true"
+      KURABAN_AUTH_ADMIN_USERNAME: "smokeadmin"
+      KURABAN_AUTH_ADMIN_PASSWORD: "smokepassword"
+      KURABAN_CORS_ENABLED: "false"
+      KURABAN_LOGGING_LEVEL: "info"
+      KURABAN_LOGGING_FORMAT: "json"
+    ports:
+      - "127.0.0.1:18080:8080"
+    depends_on:
+      garage:
+        condition: service_healthy

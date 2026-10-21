@@ -1,0 +1,227 @@
+package models
+
+import (
+	"encoding/json"
+	"time"
+)
+
+// GarageKeyInfo represents detailed information about a Garage access key
+type GarageKeyInfo struct {
+	AccessKeyID     string          `json:"accessKeyId"`
+	Name            string          `json:"name"`
+	Expired         bool            `json:"expired"`
+	SecretAccessKey *string         `json:"secretAccessKey,omitempty"`
+	Permissions     KeyPermissions  `json:"permissions"`
+	Buckets         []KeyBucketInfo `json:"buckets"`
+	Created         *time.Time      `json:"created,omitempty"`
+	Expiration      *time.Time      `json:"expiration,omitempty"`
+}
+
+// KeyPermissions represents permissions for an access key
+type KeyPermissions struct {
+	CreateBucket bool `json:"createBucket"`
+}
+
+// KeyBucketInfo represents bucket information associated with a key
+type KeyBucketInfo struct {
+	ID            string              `json:"id"`
+	GlobalAliases []string            `json:"globalAliases"`
+	LocalAliases  []string            `json:"localAliases"`
+	Permissions   BucketKeyPermission `json:"permissions"`
+}
+
+// BucketKeyPermission represents permissions a key has on a specific bucket
+type BucketKeyPermission struct {
+	Read  bool `json:"read"`
+	Write bool `json:"write"`
+	Owner bool `json:"owner"`
+}
+
+// CreateKeyRequest represents the request to create a new access key
+type CreateKeyRequest struct {
+	Name         *string         `json:"name,omitempty"`
+	Expiration   *time.Time      `json:"expiration,omitempty"`
+	NeverExpires bool            `json:"neverExpires,omitempty"`
+	Allow        *KeyPermissions `json:"allow,omitempty"`
+	Deny         *KeyPermissions `json:"deny,omitempty"`
+}
+
+// UpdateKeyRequest represents the request to update an access key
+type UpdateKeyRequest struct {
+	Name         *string         `json:"name,omitempty"`
+	Expiration   *time.Time      `json:"expiration,omitempty"`
+	NeverExpires bool            `json:"neverExpires,omitempty"`
+	Allow        *KeyPermissions `json:"allow,omitempty"`
+	Deny         *KeyPermissions `json:"deny,omitempty"`
+}
+
+// ListKeysResponseItem represents a single key in the list response
+type ListKeysResponseItem struct {
+	ID         string     `json:"id"`
+	Name       string     `json:"name"`
+	Expired    bool       `json:"expired"`
+	Created    *time.Time `json:"created,omitempty"`
+	Expiration *time.Time `json:"expiration,omitempty"`
+}
+
+// GarageBucketInfo represents detailed information about a bucket from Admin API
+type GarageBucketInfo struct {
+	ID                             string               `json:"id"`
+	Created                        time.Time            `json:"created"`
+	GlobalAliases                  []string             `json:"globalAliases"`
+	WebsiteAccess                  bool                 `json:"websiteAccess"`
+	WebsiteConfig                  *BucketWebsiteConfig `json:"websiteConfig,omitempty"`
+	Keys                           []BucketKeyInfo      `json:"keys"`
+	Objects                        int64                `json:"objects"`
+	Bytes                          int64                `json:"bytes"`
+	UnfinishedUploads              int64                `json:"unfinishedUploads"`
+	UnfinishedMultipartUploads     int64                `json:"unfinishedMultipartUploads"`
+	UnfinishedMultipartUploadParts int64                `json:"unfinishedMultipartUploadParts"`
+	UnfinishedMultipartUploadBytes int64                `json:"unfinishedMultipartUploadBytes"`
+	Quotas                         *BucketQuotas        `json:"quotas,omitempty"`
+
+	// EffectivePermissions is the caller's prefix-scoped permissions on this
+	// bucket, computed server-side. Omitted when access control is disabled.
+	EffectivePermissions []string `json:"effective_permissions,omitempty"`
+}
+
+// BucketWebsiteConfig represents website configuration for a bucket
+type BucketWebsiteConfig struct {
+	IndexDocument string  `json:"indexDocument"`
+	ErrorDocument *string `json:"errorDocument,omitempty"`
+}
+
+// BucketQuotas represents quota settings for a bucket
+type BucketQuotas struct {
+	MaxSize    *int64 `json:"maxSize,omitempty"`
+	MaxObjects *int64 `json:"maxObjects,omitempty"`
+}
+
+// BucketKeyInfo represents key information associated with a bucket
+type BucketKeyInfo struct {
+	AccessKeyID        string              `json:"accessKeyId"`
+	Name               string              `json:"name"`
+	Permissions        BucketKeyPermission `json:"permissions"`
+	BucketLocalAliases []string            `json:"bucketLocalAliases"`
+}
+
+// CreateBucketAdminRequest represents the request to create a bucket via Admin API
+type CreateBucketAdminRequest struct {
+	GlobalAlias *string                 `json:"globalAlias,omitempty"`
+	LocalAlias  *CreateBucketLocalAlias `json:"localAlias,omitempty"`
+}
+
+// CreateBucketLocalAlias represents local alias configuration when creating a bucket
+type CreateBucketLocalAlias struct {
+	AccessKeyID string               `json:"accessKeyId"`
+	Alias       string               `json:"alias"`
+	Allow       *BucketKeyPermission `json:"allow,omitempty"`
+}
+
+// UpdateBucketRequest represents the request to update bucket settings
+type UpdateBucketRequest struct {
+	WebsiteAccess *UpdateBucketWebsiteAccess `json:"websiteAccess,omitempty"`
+	Quotas        *BucketQuotas              `json:"quotas,omitempty"`
+}
+
+// UpdateBucketWebsiteAccess represents website access settings update
+type UpdateBucketWebsiteAccess struct {
+	Enabled       bool    `json:"enabled"`
+	IndexDocument *string `json:"indexDocument,omitempty"`
+	ErrorDocument *string `json:"errorDocument,omitempty"`
+}
+
+// ListBucketsResponseItem represents a single bucket in the list response
+type ListBucketsResponseItem struct {
+	ID            string             `json:"id"`
+	Created       time.Time          `json:"created"`
+	GlobalAliases []string           `json:"globalAliases"`
+	LocalAliases  []BucketLocalAlias `json:"localAliases"`
+}
+
+// BucketLocalAlias represents a local alias for a bucket
+type BucketLocalAlias struct {
+	AccessKeyID string `json:"accessKeyId"`
+	Alias       string `json:"alias"`
+}
+
+// BucketKeyPermRequest represents a request to change bucket-key permissions
+type BucketKeyPermRequest struct {
+	BucketID    string              `json:"bucketId"`
+	AccessKeyID string              `json:"accessKeyId"`
+	Permissions BucketKeyPermission `json:"permissions"`
+}
+
+// ClusterHealth represents the health status of the cluster
+type ClusterHealth struct {
+	Status           string `json:"status"`
+	KnownNodes       int    `json:"knownNodes"`
+	ConnectedNodes   int    `json:"connectedNodes"`
+	StorageNodes     int    `json:"storageNodes"`
+	StorageNodesUp   int    `json:"storageNodesUp"`
+	Partitions       int    `json:"partitions"`
+	PartitionsQuorum int    `json:"partitionsQuorum"`
+	PartitionsAllOk  int    `json:"partitionsAllOk"`
+}
+
+// UnmarshalJSON handles both "storageNodesOk" (Garage v2.0.0) and
+// "storageNodesUp" (Garage v2.1.0+, v1.x) field names.
+func (h *ClusterHealth) UnmarshalJSON(data []byte) error {
+	type plain ClusterHealth
+	var aux struct {
+		plain
+		StorageNodesOk int `json:"storageNodesOk"`
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*h = ClusterHealth(aux.plain)
+	if h.StorageNodesUp == 0 && aux.StorageNodesOk != 0 {
+		h.StorageNodesUp = aux.StorageNodesOk
+	}
+	return nil
+}
+
+// ClusterStatus represents the current status of the cluster
+type ClusterStatus struct {
+	LayoutVersion int        `json:"layoutVersion"`
+	Nodes         []NodeInfo `json:"nodes"`
+}
+
+// ClusterStatistics represents global cluster statistics
+type ClusterStatistics struct {
+	Freeform string `json:"freeform"`
+}
+
+// NodeInfo represents information about a cluster node
+type NodeInfo struct {
+	ID                string         `json:"id"`
+	IsUp              bool           `json:"isUp"`
+	LastSeenSecsAgo   *int64         `json:"lastSeenSecsAgo,omitempty"`
+	Hostname          *string        `json:"hostname,omitempty"`
+	Addr              *string        `json:"addr,omitempty"`
+	GarageVersion     *string        `json:"garageVersion,omitempty"`
+	Role              *NodeRole      `json:"role,omitempty"`
+	Draining          bool           `json:"draining"`
+	DataPartition     *FreeSpaceInfo `json:"dataPartition,omitempty"`
+	MetadataPartition *FreeSpaceInfo `json:"metadataPartition,omitempty"`
+}
+
+// NodeRole represents the role assigned to a node
+type NodeRole struct {
+	Zone     string   `json:"zone"`
+	Capacity *int64   `json:"capacity,omitempty"`
+	Tags     []string `json:"tags"`
+}
+
+// FreeSpaceInfo represents disk space information
+type FreeSpaceInfo struct {
+	Available int64 `json:"available"`
+	Total     int64 `json:"total"`
+}
+
+// MultiNodeResponse represents responses from multiple nodes
+type MultiNodeResponse struct {
+	Success map[string]interface{} `json:"success"`
+	Error   map[string]string      `json:"error"`
+}

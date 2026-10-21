@@ -1,0 +1,314 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { objectsApi } from '@/lib/api';
+import type { S3Object, UploadTask } from '@/types';
+import { toast } from 'sonner';
+import { useTranslation } from '@/lib/i18n';
+
+// How long to wait after the last keystroke before actually searching. Keeps
+// typing from firing a request (and a client-side re-filter) on every key.
+const SEARCH_DEBOUNCE_MS = 750;
+
+export function useBucketObjects(bucketName: string | null, currentPath: string = '', searchQuery: string = '', deepSearch: boolean = false, initialToken?: string, initialLimit = 25) {
+  const { t, language } = useTranslation();
+  const [objects, setObjects] = useState<S3Object[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const [isTruncated, setIsTruncated] = useState(false);
+  const [nextContinuationToken, setNextContinuationToken] = useState<string | undefined>(undefined);
+  const [itemsPerPage, setItemsPerPage] = useState(initialLimit);
+  const [currentContinuationToken, setCurrentContinuationToken] = useState<string | undefined>(initialToken);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const previousPathRef = useRef<string>(currentPath);
+  const previousLimitRef = useRef(itemsPerPage);
+  const [uploadTasks, setUploadTasks] = useState<UploadTask[]>([]);
+  const clearTasksTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const uploadingRef = useRef(false);
+  const uploadRunRef = useRef(0);
+  // Monotonic sequence guarding against stale responses: when a newer fetch or
+  // search starts, older in-flight responses are discarded instead of clobbering
+  // the current view (e.g. a slow search resolving after the query was cleared).
+  const fetchSeqRef = useRef(0);
+
+  // Prefix search (the default) narrows the Garage listing to keys starting with
+  // the query, within the current folder — server-side, paginated, and O(matches)
+  // like the AWS S3 / R2 consoles. Deep search instead uses a recursive scan
+  // (see searchObjects) and does not touch listPrefix.
+  const listPrefix = debouncedSearch && !deepSearch ? currentPath + debouncedSearch : currentPath;
+
+  const fetchObjects = useCallback(async (continuationToken?: string, isRefresh = false, isNav = false) => {
+    if (!bucketName) return;
+
+    const seq = ++fetchSeqRef.current;
+    try {
+      if (isRefresh) {
+        setIsRefreshing(true);
+      } else if (isNav) {
+        setIsNavigating(true);
+      } else {
+        setIsLoading(true);
+      }
+      setError(null);
+      const response = await objectsApi.list(bucketName, listPrefix, itemsPerPage, continuationToken);
+      if (seq !== fetchSeqRef.current) return;
+      setObjects(response.objects);
+      setIsTruncated(response.isTruncated);
+      setNextContinuationToken(response.nextContinuationToken);
+      setCurrentContinuationToken(continuationToken);
+    } catch (err) {
+      if (seq !== fetchSeqRef.current) return;
+      setError(err as Error);
+      console.error('Failed to fetch objects:', err);
+    } finally {
+      if (seq === fetchSeqRef.current) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+        setIsNavigating(false);
+      }
+    }
+  }, [bucketName, listPrefix, itemsPerPage]);
+
+  const searchObjects = useCallback(async (query: string) => {
+    if (!bucketName) return;
+
+    const seq = ++fetchSeqRef.current;
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await objectsApi.search(bucketName, query, currentPath || undefined);
+      if (seq !== fetchSeqRef.current) return;
+      setObjects(response.objects);
+      setIsTruncated(response.isTruncated);
+      // Search results are not token-paginated.
+      setNextContinuationToken(undefined);
+      setCurrentContinuationToken(undefined);
+    } catch (err) {
+      if (seq !== fetchSeqRef.current) return;
+      setError(err as Error);
+      console.error('Failed to search objects:', err);
+    } finally {
+      if (seq === fetchSeqRef.current) setIsLoading(false);
+    }
+  }, [bucketName, currentPath]);
+
+  // Debounce the search query so we don't fire a recursive scan per keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (!bucketName) return;
+
+    // Deep search: recursive substring scan across the current subtree.
+    if (debouncedSearch && deepSearch) {
+      searchObjects(debouncedSearch);
+      return;
+    }
+
+    // Normal listing, or prefix-filtered listing (listPrefix carries the query).
+    const isPathChange = previousPathRef.current !== currentPath && objects.length > 0;
+    const pageToken = isPathChange || previousLimitRef.current !== itemsPerPage
+      ? undefined
+      : currentContinuationToken;
+    previousPathRef.current = currentPath;
+    previousLimitRef.current = itemsPerPage;
+    fetchObjects(pageToken, false, isPathChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bucketName, currentPath, itemsPerPage, debouncedSearch, deepSearch]);
+
+  useEffect(() => {
+    return () => {
+      if (clearTasksTimerRef.current) clearTimeout(clearTasksTimerRef.current);
+    };
+  }, []);
+
+  const uploadFiles = useCallback(async (files: File[]) => {
+    if (!bucketName) return false;
+    if (uploadingRef.current) {
+      toast.error(t('buckets.upload.errors.already_in_progress'));
+      return false;
+    }
+    uploadingRef.current = true;
+    const run = ++uploadRunRef.current;
+
+    const hasRelativePaths = files.some((file) => !!file.webkitRelativePath);
+
+    const folders = new Set<string>();
+    files.forEach((file) => {
+      if (file.webkitRelativePath) {
+        const parts = file.webkitRelativePath.split('/');
+        if (parts.length > 1) {
+          folders.add(parts[0]);
+        }
+      }
+    });
+
+    const tasks: UploadTask[] = files.map((file, index) => {
+      const relativePath = file.webkitRelativePath || file.name;
+      const key = currentPath ? `${currentPath}${relativePath}` : relativePath;
+      return {
+        id: `${Date.now()}-${index}`,
+        file,
+        key,
+        bucket: bucketName,
+        progress: 0,
+        status: 'pending' as const,
+      };
+    });
+
+    setUploadTasks(tasks);
+
+    try {
+      const results: boolean[] = [];
+      // Keep browser and Garage request pressure bounded for folder uploads.
+      const workers = Math.min(4, tasks.length);
+      let next = 0;
+      await Promise.all(Array.from({ length: workers }, async () => {
+        while (next < tasks.length) {
+          const task = tasks[next++];
+        try {
+          setUploadTasks(prev => prev.map(t =>
+            t.id === task.id ? { ...t, status: 'uploading' as const } : t
+          ));
+
+          await objectsApi.upload(bucketName, task.key, task.file, (progress) => {
+            setUploadTasks(prev => prev.map(t => {
+              if (t.id !== task.id || t.progress === progress) return t;
+              return { ...t, progress };
+            }));
+          });
+
+          setUploadTasks(prev => prev.map(t =>
+            t.id === task.id ? { ...t, status: 'completed' as const, progress: 100 } : t
+          ));
+          results.push(true);
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : t('buckets.upload.errors.failed');
+          setUploadTasks(prev => prev.map(t =>
+            t.id === task.id ? { ...t, status: 'error' as const, error: errorMessage } : t
+          ));
+          console.error(`Failed to upload ${task.key}:`, error);
+          results.push(false);
+        }
+        }
+      }));
+
+      const successCount = results.filter(Boolean).length;
+      const errorCount = results.length - successCount;
+
+      if (errorCount === 0) {
+        if (hasRelativePaths && folders.size > 0) {
+          const folderNames = Array.from(folders).join(', ');
+          toast.success(t('buckets.upload.toast.files_from_folders', {
+            files: successCount.toLocaleString(language),
+            folders: folders.size.toLocaleString(language),
+            names: folderNames,
+          }));
+        } else {
+          toast.success(t('buckets.upload.toast.success', { count: successCount.toLocaleString(language) }));
+        }
+      } else if (successCount > 0) {
+        toast.warning(t('buckets.upload.toast.partial', {
+          success: successCount.toLocaleString(language),
+          failed: errorCount.toLocaleString(language),
+        }));
+      } else {
+        toast.error(t('buckets.upload.toast.all_failed', { count: errorCount.toLocaleString(language) }));
+      }
+
+      if (clearTasksTimerRef.current) clearTimeout(clearTasksTimerRef.current);
+      clearTasksTimerRef.current = setTimeout(() => {
+        if (run === uploadRunRef.current) setUploadTasks([]);
+        clearTasksTimerRef.current = null;
+      }, 3000);
+
+      if (run === uploadRunRef.current) await fetchObjects(currentContinuationToken, true);
+      return successCount > 0;
+    } finally {
+      uploadingRef.current = false;
+    }
+  }, [bucketName, currentPath, currentContinuationToken, fetchObjects, language, t]);
+
+  const deleteObject = useCallback(async (key: string) => {
+    if (!bucketName) return false;
+
+    try {
+      setObjects(prev => prev.filter(obj => obj.key !== key));
+
+      await objectsApi.delete(bucketName, key);
+      toast.success(t('buckets.toast.named_object_deleted', { key }));
+      await fetchObjects(currentContinuationToken, true);
+      return true;
+    } catch (error) {
+      console.error('Delete object error:', error);
+      await fetchObjects(currentContinuationToken, true);
+      return false;
+    }
+  }, [bucketName, currentContinuationToken, fetchObjects, t]);
+
+  // Deletes the selected object keys and recursively deletes every object under
+  // each selected folder prefix.
+  const deleteMultipleObjects = useCallback(async (keys: string[], prefixes: string[] = []) => {
+    if (!bucketName || (keys.length === 0 && prefixes.length === 0)) return false;
+
+    try {
+      const keySet = new Set(keys);
+      setObjects(prev => prev.filter(obj =>
+        !keySet.has(obj.key) && !prefixes.some(prefix => obj.key.startsWith(prefix))
+      ));
+
+      await objectsApi.deleteMultiple(bucketName, keys, prefixes);
+
+      toast.success(t('buckets.bulk_delete.toast.success', {
+        files: keys.length.toLocaleString(language),
+        folders: prefixes.length.toLocaleString(language),
+      }));
+
+      await fetchObjects(currentContinuationToken, true);
+      return true;
+    } catch (error) {
+      console.error('Bulk delete error:', error);
+      await fetchObjects(currentContinuationToken, true);
+      return false;
+    }
+  }, [bucketName, currentContinuationToken, fetchObjects, language, t]);
+
+  const createDirectory = useCallback(async (dirName: string) => {
+    if (!bucketName) return false;
+
+    try {
+      const dirKey = currentPath ? `${currentPath}${dirName}/` : `${dirName}/`;
+      await objectsApi.createDirectory(bucketName, dirKey);
+      toast.success(t('buckets.directory_dialog.toast.created', { name: dirName }));
+      await fetchObjects(currentContinuationToken, true);
+      return true;
+    } catch (error) {
+      console.error('Create directory error:', error);
+      return false;
+    }
+  }, [bucketName, currentPath, currentContinuationToken, fetchObjects, t]);
+
+  return {
+    objects,
+    // The debounced query the current results reflect — use this (not the raw
+    // input) to filter/label results so the view waits instead of twitching.
+    debouncedSearch,
+    isLoading,
+    isRefreshing,
+    isNavigating,
+    error,
+    isTruncated,
+    nextContinuationToken,
+    currentContinuationToken,
+    itemsPerPage,
+    setItemsPerPage,
+    fetchObjects,
+    uploadFiles,
+    uploadTasks,
+    deleteObject,
+    deleteMultipleObjects,
+    createDirectory,
+  };
+}
