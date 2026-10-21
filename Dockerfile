@@ -11,7 +11,7 @@ COPY frontend/ .
 
 RUN npm run build
 
-FROM --platform=$BUILDPLATFORM golang:1.26.6-alpine3.23 AS backend-builder
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS backend-builder
 
 ARG TARGETOS
 ARG TARGETARCH
