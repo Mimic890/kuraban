@@ -1018,19 +1018,20 @@ export function AccessControl() {
                 value={viewingKey?.accessKeyId || ''}
                 breakAll
               />
-              <div className="space-y-1.5">
-                <label className="text-[0.75rem] font-medium uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
-                   {t('access_control.secret_access_key_label')}
-                </label>
-                {detailsSecretKey ? (
-                  <CredentialField
-                    label={t('access_control.secret_access_key_label')}
-                    value={detailsSecretKey}
-                    breakAll
-                    maskable
-                    loading={isLoadingDetailsSecretKey}
-                  />
-                ) : (
+              {detailsSecretKey ? (
+                // CredentialField renders its own label.
+                <CredentialField
+                  label={t('access_control.secret_access_key_label')}
+                  value={detailsSecretKey}
+                  breakAll
+                  maskable
+                  loading={isLoadingDetailsSecretKey}
+                />
+              ) : (
+                <div className="space-y-1.5">
+                  <label className="text-[0.75rem] font-medium uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
+                    {t('access_control.secret_access_key_label')}
+                  </label>
                   <Button
                     variant="secondary"
                     onClick={handleRevealDetailsSecret}
@@ -1044,8 +1045,8 @@ export function AccessControl() {
                     )}
                      {t('access_control.reveal_secret_action')}
                   </Button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
 
             {/* Bucket Permissions */}
