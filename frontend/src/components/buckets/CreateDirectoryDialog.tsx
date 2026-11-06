@@ -3,7 +3,6 @@ import { FolderPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Dialog,
   DialogBody,
   DialogContent,
   DialogDescription,
@@ -11,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { GuardedDialog } from '@/components/ui/confirm-dialog';
 import { IconTile } from '@/components/ui/icon-tile';
 import { toast } from 'sonner';
 import { useTranslation } from '@/lib/i18n';
@@ -48,7 +48,7 @@ export function CreateDirectoryDialog({ open, onOpenChange, currentPath, onCreat
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <GuardedDialog open={open} onOpenChange={onOpenChange} dirty={!!dirName && !pending}>
       <DialogContent>
         <DialogHeader>
           <IconTile icon={<FolderPlus />} tone="primary" size="md" />
@@ -84,6 +84,6 @@ export function CreateDirectoryDialog({ open, onOpenChange, currentPath, onCreat
           </Button>
         </DialogFooter>
       </DialogContent>
-    </Dialog>
+    </GuardedDialog>
   );
 }

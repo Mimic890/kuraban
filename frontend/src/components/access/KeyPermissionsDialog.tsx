@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { Edit, Loader2, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { GuardedDialog } from '@/components/ui/confirm-dialog';
 import { IconTile } from '@/components/ui/icon-tile';
 import { Input } from '@/components/ui/input';
 import { useBuckets, useSaveKeyPermissions } from '@/hooks/useApi';
@@ -70,7 +71,12 @@ export function KeyPermissionsDialog({
     );
 
   return (
-    <Dialog open onOpenChange={(open) => !open && !save.isPending && onClose()} size="form">
+    <GuardedDialog
+      open
+      onOpenChange={(open) => !open && !save.isPending && onClose()}
+      size="form"
+      dirty={changes.length > 0 && !save.isPending}
+    >
       <DialogContent>
         <DialogHeader>
           <IconTile icon={<Edit />} tone="primary" size="md" />
@@ -164,6 +170,6 @@ export function KeyPermissionsDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
-    </Dialog>
+    </GuardedDialog>
   );
 }

@@ -16,6 +16,9 @@ interface DialogContextValue {
 
 const DialogContext = React.createContext<DialogContextValue | undefined>(undefined);
 
+// Open dialogs, innermost last. All of them listen on document, so only the top one may act on a key.
+const openDialogs: object[] = [];
+
 function useDialog() {
   const ctx = React.useContext(DialogContext);
   if (!ctx) throw new Error('useDialog must be used within a Dialog');
@@ -75,15 +78,21 @@ const DialogContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTML
     const { t } = useTranslation();
     const { open, onOpenChange, size, titleId, descriptionId } = useDialog();
     const containerRef = React.useRef<HTMLDivElement>(null);
+    // Callers pass inline handlers. Depending on one would rerun the effect below on every render and pull focus away from the field being typed in.
+    const onOpenChangeRef = React.useRef(onOpenChange);
+    React.useEffect(() => { onOpenChangeRef.current = onOpenChange; });
 
     React.useEffect(() => {
       if (!open) return;
       const previouslyFocused = document.activeElement as HTMLElement | null;
+      const self = {};
+      openDialogs.push(self);
 
       const keyHandler = (e: KeyboardEvent) => {
+        if (openDialogs[openDialogs.length - 1] !== self) return;
         if (e.key === 'Escape') {
           e.stopPropagation();
-          onOpenChange(false);
+          onOpenChangeRef.current(false);
           return;
         }
         if (e.key !== 'Tab' || !containerRef.current) return;
@@ -112,9 +121,10 @@ const DialogContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTML
 
       return () => {
         document.removeEventListener('keydown', keyHandler);
+        openDialogs.splice(openDialogs.indexOf(self), 1);
         previouslyFocused?.focus?.();
       };
-    }, [open, onOpenChange]);
+    }, [open]);
 
     if (!open) return null;
 

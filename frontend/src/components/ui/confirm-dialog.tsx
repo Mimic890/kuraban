@@ -28,6 +28,42 @@ interface ConfirmDialogProps {
   onConfirm: () => void | Promise<void>;
 }
 
+type GuardedDialogProps = React.ComponentProps<typeof Dialog> & {
+  /** Something would be lost: an overlay click, Esc or the X ask first. Cancel buttons still close at once. */
+  dirty: boolean;
+  /** Replaces the default "changes won't be saved" line. */
+  warning?: string;
+};
+
+export function GuardedDialog({ dirty, warning, onOpenChange, ...props }: GuardedDialogProps) {
+  const { t } = useTranslation();
+  const [asking, setAsking] = React.useState(false);
+  return (
+    <>
+      <Dialog
+        {...props}
+        onOpenChange={(next) => {
+          if (!next && dirty) setAsking(true);
+          else onOpenChange?.(next);
+        }}
+      />
+      <ConfirmDialog
+        open={asking}
+        onOpenChange={setAsking}
+        title={t('common.confirm.close_title')}
+        note={warning ?? t('common.confirm.close_note')}
+        icon={<AlertTriangle />}
+        cancelLabel={t('common.confirm.close_stay')}
+        confirmLabel={t('common.confirm.close_leave')}
+        onConfirm={() => {
+          setAsking(false);
+          onOpenChange?.(false);
+        }}
+      />
+    </>
+  );
+}
+
 export function ConfirmDialog({
   open,
   onOpenChange,

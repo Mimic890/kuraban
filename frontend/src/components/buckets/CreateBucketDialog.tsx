@@ -3,7 +3,6 @@ import { Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Dialog,
   DialogBody,
   DialogContent,
   DialogDescription,
@@ -11,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { GuardedDialog } from '@/components/ui/confirm-dialog';
 import { IconTile } from '@/components/ui/icon-tile';
 import { toast } from 'sonner';
 import { useTranslation } from '@/lib/i18n';
@@ -47,7 +47,7 @@ export function CreateBucketDialog({ open, onOpenChange, onCreateBucket }: Creat
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <GuardedDialog open={open} onOpenChange={onOpenChange} dirty={!!bucketName && !pending}>
       <DialogContent>
         <DialogHeader>
           <IconTile icon={<Database />} tone="primary" size="md" />
@@ -90,6 +90,6 @@ export function CreateBucketDialog({ open, onOpenChange, onCreateBucket }: Creat
           </Button>
         </DialogFooter>
       </DialogContent>
-    </Dialog>
+    </GuardedDialog>
   );
 }

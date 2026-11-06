@@ -4,7 +4,8 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { GuardedDialog } from '@/components/ui/confirm-dialog';
+import { DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuthStore } from '@/store/auth-store';
 import { authApi } from '@/lib/api';
 import type { Account, SensitiveAccountInput, TotpEnrollment } from '@/types/auth';
@@ -60,6 +61,7 @@ function SensitiveFields({
 }
 
 const emptySensitive = (): SensitiveAccountInput => ({ current_password: '', second_factor: '' });
+const filled = (auth: SensitiveAccountInput) => !!auth.current_password || !!auth.second_factor;
 
 export function UserSettings() {
   const { t, language } = useTranslation();
@@ -286,7 +288,7 @@ export function UserSettings() {
       </>}
     </div>
 
-    <Dialog open={emailOpen} onOpenChange={setEmailOpen} size="form">
+    <GuardedDialog open={emailOpen} onOpenChange={setEmailOpen} size="form" dirty={email !== (account?.email || user?.email || '') || filled(profileAuth)}>
       <DialogContent>
         <DialogHeader><DialogTitle>{t('userSettings.profile.changeEmailTitle')}</DialogTitle><DialogDescription>{t('userSettings.profile.changeEmailDescription')}</DialogDescription></DialogHeader>
         <DialogBody>
@@ -300,9 +302,9 @@ export function UserSettings() {
           <Button type="submit" form="email-form" disabled={!!pending}>{pending === 'profile' ? t('userSettings.profile.saving') : t('userSettings.profile.saveEmail')}</Button>
         </DialogFooter>
       </DialogContent>
-    </Dialog>
+    </GuardedDialog>
 
-    <Dialog open={passwordOpen} onOpenChange={setPasswordOpen} size="form">
+    <GuardedDialog open={passwordOpen} onOpenChange={setPasswordOpen} size="form" dirty={filled(passwordAuth) || !!newPassword || !!confirmPassword}>
       <DialogContent>
         <DialogHeader><DialogTitle>{t('userSettings.password.changePasswordTitle')}</DialogTitle><DialogDescription>{t('userSettings.password.changePasswordDescription')}</DialogDescription></DialogHeader>
         <DialogBody>
@@ -317,9 +319,9 @@ export function UserSettings() {
           <Button type="submit" form="password-form" disabled={!!pending}>{pending === 'password' ? t('userSettings.password.changing') : t('userSettings.password.changeAction')}</Button>
         </DialogFooter>
       </DialogContent>
-    </Dialog>
+    </GuardedDialog>
 
-    <Dialog open={regenOpen} onOpenChange={setRegenOpen} size="form">
+    <GuardedDialog open={regenOpen} onOpenChange={setRegenOpen} size="form" dirty={filled(recoveryAuth)}>
       <DialogContent>
         <DialogHeader><DialogTitle>{t('userSettings.totp.regenerateTitle')}</DialogTitle><DialogDescription>{t('userSettings.totp.regenerateDescription')}</DialogDescription></DialogHeader>
         <DialogBody>
@@ -332,9 +334,9 @@ export function UserSettings() {
           <Button type="submit" form="regen-form" disabled={!!pending}>{pending === 'recovery' ? t('userSettings.totp.generating') : t('userSettings.totp.generateAction')}</Button>
         </DialogFooter>
       </DialogContent>
-    </Dialog>
+    </GuardedDialog>
 
-    <Dialog open={disableOpen} onOpenChange={setDisableOpen} size="form">
+    <GuardedDialog open={disableOpen} onOpenChange={setDisableOpen} size="form" dirty={filled(disableAuth)}>
       <DialogContent>
         <DialogHeader><DialogTitle>{t('userSettings.totp.disableTitle')}</DialogTitle><DialogDescription>{t('userSettings.totp.disableDescription')}</DialogDescription></DialogHeader>
         <DialogBody>
@@ -347,9 +349,9 @@ export function UserSettings() {
           <Button type="submit" form="disable-totp-form" variant="destructive" disabled={!!pending}>{pending === 'totp-disable' ? t('userSettings.totp.disabling') : t('userSettings.totp.disableAction')}</Button>
         </DialogFooter>
       </DialogContent>
-    </Dialog>
+    </GuardedDialog>
 
-    <Dialog open={totpOpen} onOpenChange={(open) => open ? setTotpOpen(true) : closeCodes()} size="form">
+    <GuardedDialog open={totpOpen} onOpenChange={(open) => open ? setTotpOpen(true) : closeCodes()} size="form" dirty={!recoveryCodes.length && (!!enrollment || !!totpPassword)}>
       <DialogContent>
         <DialogHeader><div><DialogTitle>{recoveryCodes.length ? t('userSettings.totp.dialog.recoveryTitle') : t('userSettings.totp.dialog.setupTitle')}</DialogTitle><DialogDescription>{recoveryCodes.length ? t('userSettings.totp.dialog.recoveryDescription') : t('userSettings.totp.dialog.setupDescription')}</DialogDescription></div></DialogHeader>
         <DialogBody>
@@ -369,6 +371,6 @@ export function UserSettings() {
           {recoveryCodes.length ? <Button type="button" disabled={!codesAcknowledged} onClick={closeCodes}>{t('common.actions.done')}</Button> : <Button type="submit" form={enrollment ? 'totp-finish' : 'totp-begin'} disabled={!!pending}>{pending ? t('common.status.working') : enrollment ? t('userSettings.totp.dialog.verifyEnableAction') : t('common.actions.continue')}</Button>}
         </DialogFooter>
       </DialogContent>
-    </Dialog>
+    </GuardedDialog>
   </div>;
 }

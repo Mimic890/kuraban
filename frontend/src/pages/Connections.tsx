@@ -5,13 +5,13 @@ import { toast } from 'sonner';
 import { CheckCircle2, LayoutGrid, Loader2, Pencil, Plug, Plus, RefreshCw, Server, ShieldPlus, Table2, Trash2, XCircle } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { IconTile } from '@/components/ui/icon-tile';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { ConfirmDialog, GuardedDialog } from '@/components/ui/confirm-dialog';
 import { Segmented } from '@/components/ui/segmented';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useClusterStore, type ClusterConfig } from '@/store/cluster-store';
@@ -32,8 +32,8 @@ const EMPTY_DRAFT: ClusterDraft = {
   force_path_style: true,
 };
 
-// The add form's draft survives reloads and navigation, and closing the dialog
-// with Esc or a stray overlay click; only Cancel discards it. The admin token is
+// The add form's draft survives reloads and navigation. A stray overlay click or
+// Esc asks first; only Cancel or confirming that discards it. The admin token is
 // left out on purpose: secrets never go to web storage.
 const DRAFT_KEY = 'connections-add-draft';
 
@@ -227,7 +227,12 @@ function ClusterForm({ cluster, onClose }: { cluster?: ClusterConfig; onClose: (
   };
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()} size="form">
+    <GuardedDialog
+      open
+      onOpenChange={(open) => !open && cancel()}
+      size="form"
+      dirty={!saving && JSON.stringify(draft) !== JSON.stringify(cluster ? clusterToDraft(cluster) : EMPTY_DRAFT)}
+    >
       <DialogContent>
         <DialogHeader>
           <IconTile icon={<Server />} tone="primary" size="md" />
@@ -298,7 +303,7 @@ function ClusterForm({ cluster, onClose }: { cluster?: ClusterConfig; onClose: (
           </DialogFooter>
         </form>
       </DialogContent>
-    </Dialog>
+    </GuardedDialog>
   );
 }
 

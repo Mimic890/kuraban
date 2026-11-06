@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { IconTile } from '@/components/ui/icon-tile';
 import { KeyPermissionsDialog } from '@/components/access/KeyPermissionsDialog';
-import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { ConfirmDialog, GuardedDialog } from '@/components/ui/confirm-dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -280,6 +280,11 @@ export function AccessControl() {
       setNeverExpires(true);
     }
   };
+
+  const savedExpiration = settingsKey?.expiration ? dateTimeInputValue(new Date(settingsKey.expiration)) : '';
+  const settingsChanged = !!settingsKey && (
+    keyStatus !== settingsKey.status || (neverExpires ? !!savedExpiration : expirationDate !== savedExpiration)
+  );
 
   const handleSaveKeySettings = async () => {
     if (!settingsKey) return;
@@ -561,7 +566,13 @@ export function AccessControl() {
       </div>
 
       {/* Create Key Dialog */}
-      <Dialog open={createDialogOpen} onOpenChange={handleCloseCreateDialog} size="form">
+      <GuardedDialog
+        open={createDialogOpen}
+        onOpenChange={handleCloseCreateDialog}
+        size="form"
+        dirty={!!newlyCreatedKey || !!newKeyName || createGrantPermissions}
+        warning={newlyCreatedKey ? t('access_control.created_dialog_description') : undefined}
+      >
         <DialogContent>
           {newlyCreatedKey ? (
             <>
@@ -736,7 +747,7 @@ export function AccessControl() {
             </>
           )}
         </DialogContent>
-      </Dialog>
+      </GuardedDialog>
 
       {/* Delete Key Dialog */}
       <ConfirmDialog
@@ -781,7 +792,7 @@ export function AccessControl() {
       </Dialog>
 
       {/* Key Settings Dialog */}
-      <Dialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen} size="form">
+      <GuardedDialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen} size="form" dirty={settingsChanged}>
         <DialogContent>
           <DialogHeader>
             <IconTile icon={<ShieldCheck />} tone="primary" size="md" />
@@ -860,7 +871,7 @@ export function AccessControl() {
              <Button onClick={handleSaveKeySettings}>{t('access_control.save_settings_button')}</Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </GuardedDialog>
 
       {/* Key Details Dialog */}
       <Dialog open={keyDetailsDialogOpen} onOpenChange={setKeyDetailsDialogOpen} size="form">
