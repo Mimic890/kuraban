@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"Mimic890/kuraban/internal/models"
+	"Mimic890/kuraban/internal/services"
 
 	"github.com/gofiber/fiber/v3"
 )
@@ -78,8 +79,7 @@ func (h *MonitoringHandler) CheckAdminHealth(c fiber.Ctx) error {
 func (h *MonitoringHandler) GetDashboardMetrics(c fiber.Ctx) error {
 	ctx := c.Context()
 
-	// Get bucket list
-	buckets, err := getAdminService(c).ListBuckets(ctx)
+	buckets, err := services.ListBucketsWithInfo(ctx, getAdminService(c))
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(
 			models.ErrorResponse(models.ErrCodeInternalError, "Failed to get buckets: "+err.Error()),
@@ -91,10 +91,9 @@ func (h *MonitoringHandler) GetDashboardMetrics(c fiber.Ctx) error {
 	var totalObjects int64
 	usageByBucket := make([]models.BucketUsage, 0)
 
-	for _, bucket := range buckets {
-		// Get bucket info to calculate size and object count
-		bucketInfo, err := getAdminService(c).GetBucketInfo(ctx, bucket.ID)
-		if err != nil {
+	for _, item := range buckets {
+		bucket, bucketInfo := item.Bucket, item.Info
+		if bucketInfo == nil {
 			continue // Skip buckets we can't access
 		}
 

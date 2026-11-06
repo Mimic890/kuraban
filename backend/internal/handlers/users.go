@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"context"
-	"errors"
 	"time"
 
 	"Mimic890/kuraban/internal/models"
@@ -40,12 +38,8 @@ func NewUserHandler() *UserHandler {
 //	@Router			/api/v1/users [get]
 func (h *UserHandler) ListUsers(c fiber.Ctx) error {
 	ctx := c.Context()
-	admin := getAdminService(c)
 
-	keys, err := admin.ListKeysInfo(ctx)
-	if errors.Is(err, services.ErrUnsupported) {
-		keys, err = listKeysOneByOne(ctx, admin)
-	}
+	keys, err := services.ListKeysWithInfo(ctx, getAdminService(c))
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(
 			models.ErrorResponse(models.ErrCodeInternalError, "Failed to list users: "+err.Error()),
@@ -76,30 +70,6 @@ func (h *UserHandler) ListUsers(c fiber.Ctx) error {
 		Users: users,
 		Count: len(users),
 	}))
-}
-
-// listKeysOneByOne serves Garage without ListKeysInfo. A key whose details can't
-// be read is left out.
-func listKeysOneByOne(ctx context.Context, admin services.AdminService) ([]models.GarageKeyInfo, error) {
-	list, err := admin.ListKeys(ctx)
-	if err != nil {
-		return nil, err
-	}
-	details := make([]*models.GarageKeyInfo, len(list))
-	forEachLimited(len(list), func(i int) {
-		details[i], _ = admin.GetKeyInfo(ctx, list[i].ID, false)
-	})
-	// Past the deadline every remaining key fails, and a short list would look complete.
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	keys := make([]models.GarageKeyInfo, 0, len(list))
-	for _, keyInfo := range details {
-		if keyInfo != nil {
-			keys = append(keys, *keyInfo)
-		}
-	}
-	return keys, nil
 }
 
 // convertBucketPermissionsToBucketPermissions converts Garage bucket permissions to frontend BucketPermission format

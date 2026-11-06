@@ -52,14 +52,14 @@ func TestListBuckets_MapsAliasesAndStats(t *testing.T) {
 			{ID: "id-3", Created: time.Unix(0, 0), GlobalAliases: []string{"gamma"}},
 		}, nil
 	}
-	admin.GetBucketInfoByAliasFn = func(_ context.Context, alias string) (*models.GarageBucketInfo, error) {
-		switch alias {
-		case "alpha":
+	admin.GetBucketInfoFn = func(_ context.Context, id string) (*models.GarageBucketInfo, error) {
+		switch id {
+		case "id-1":
 			return &models.GarageBucketInfo{ID: "id-1", Objects: 10, Bytes: 100, WebsiteAccess: true}, nil
-		case "gamma":
+		case "id-3":
 			return nil, errors.New("detail fetch failed") // degraded path
 		}
-		return nil, errors.New("unexpected alias: " + alias)
+		return nil, errors.New("unexpected id: " + id)
 	}
 	req := httptest.NewRequest(http.MethodGet, "/buckets", nil)
 	resp, err := app.Test(req)
@@ -632,8 +632,8 @@ func TestListBuckets_UsesBatchWithoutPerBucketCalls(t *testing.T) {
 			{ID: "3", Created: created, GlobalAliases: []string{"beta"}, Objects: 5, Bytes: 60},
 		}, nil
 	}
-	admin.GetBucketInfoByAliasFn = func(_ context.Context, alias string) (*models.GarageBucketInfo, error) {
-		t.Errorf("no per-bucket call expected, got %s", alias)
+	admin.GetBucketInfoFn = func(_ context.Context, id string) (*models.GarageBucketInfo, error) {
+		t.Errorf("no per-bucket call expected, got %s", id)
 		return nil, nil
 	}
 	resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/buckets", nil))

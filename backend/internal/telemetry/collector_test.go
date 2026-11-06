@@ -3,6 +3,7 @@ package telemetry
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -149,5 +150,33 @@ func TestJoinErrsTruncates(t *testing.T) {
 	got := joinErrs([]string{"a", strings.Repeat("x", 400)})
 	if !strings.HasPrefix(got, "a; ") || len(got) != 3+300 {
 		t.Errorf("len = %d", len(got))
+	}
+}
+
+// Metric series are keyed by bucket name, so the batch path must produce exactly
+// what the one-by-one path did or a bucket's history would split.
+func TestBucketSamples_BatchMatchesOneByOne(t *testing.T) {
+	oneByOne := newMockAdmin()
+	want, err := bucketSamples(context.Background(), oneByOne)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	batch := newMockAdmin()
+	batch.ListBucketsInfoFn = func(context.Context) ([]models.GarageBucketInfo, error) {
+		return []models.GarageBucketInfo{
+			{ID: "id1", GlobalAliases: []string{"photos"}, Bytes: 100, Objects: 10, UnfinishedMultipartUploads: 1},
+			{ID: "id2", Bytes: 50, Objects: 5, Keys: []models.BucketKeyInfo{{BucketLocalAliases: []string{"local"}}}},
+			{ID: strings.Repeat("c", 64), Bytes: 100, Objects: 10, UnfinishedMultipartUploads: 1},
+		}, nil
+	}
+	batch.ListBucketsFn = nil
+	batch.GetBucketInfoFn = nil
+	got, err := bucketSamples(context.Background(), batch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("batch samples differ\n got %+v\nwant %+v", got, want)
 	}
 }

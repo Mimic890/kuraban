@@ -214,3 +214,33 @@ func TestMonitoring_GetDashboardMetrics_ListBucketsErrorReturns500(t *testing.T)
 		t.Fatalf("status = %d, want 500", resp.StatusCode)
 	}
 }
+
+func TestMonitoring_GetDashboardMetrics_UsesBatch(t *testing.T) {
+	app, admin := newMonitoringTestApp(t)
+	admin.ListBucketsInfoFn = func(_ context.Context) ([]models.GarageBucketInfo, error) {
+		return []models.GarageBucketInfo{
+			{ID: "1", GlobalAliases: []string{"alpha"}, Bytes: 300, Objects: 3},
+			{ID: "2", Bytes: 100, Objects: 1, Keys: []models.BucketKeyInfo{{BucketLocalAliases: []string{"local-only"}}}},
+		}, nil
+	}
+	admin.GetBucketInfoFn = func(_ context.Context, id string) (*models.GarageBucketInfo, error) {
+		t.Errorf("no per-bucket call expected, got %s", id)
+		return nil, nil
+	}
+	resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/monitoring/dashboard", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var body struct {
+		Data models.DashboardMetrics `json:"data"`
+	}
+	decodeJSON(t, resp.Body, &body)
+	m := body.Data
+	if m.TotalSize != 400 || m.ObjectCount != 4 || m.BucketCount != 2 || len(m.UsageByBucket) != 2 {
+		t.Fatalf("metrics = %+v", m)
+	}
+	if m.UsageByBucket[0].BucketName != "alpha" || m.UsageByBucket[0].Percentage != 75 || m.UsageByBucket[1].BucketName != "local-only" {
+		t.Errorf("usage = %+v", m.UsageByBucket)
+	}
+}

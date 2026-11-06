@@ -167,9 +167,8 @@ const bucketInfoCacheTTL = 5 * time.Second
 
 // cachedBucketInfo returns a bucket's details, fetching through fetch on a
 // cache miss and serving the freshly-resolved value for the next
-// bucketInfoCacheTTL. Handlers that walk all buckets one by one (dashboard
-// metrics, ListBuckets on Garage without ListBucketsInfo) would otherwise issue
-// one Admin API request per bucket on every refresh. Cache keys are scoped to the cluster's
+// bucketInfoCacheTTL. ListBucketsWithInfo on Garage without ListBucketsInfo
+// would otherwise issue one Admin API request per bucket on every refresh. Cache keys are scoped to the cluster's
 // admin endpoint so multiple connected clusters, and the same alias/id across
 // clusters, never collide.
 //

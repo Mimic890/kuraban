@@ -1,11 +1,6 @@
 package handlers
 
 import (
-	"context"
-	"errors"
-	"sync"
-	"time"
-
 	"Mimic890/kuraban/internal/authz"
 	"Mimic890/kuraban/internal/models"
 	"Mimic890/kuraban/internal/services"
@@ -33,16 +28,29 @@ func NewBucketHandler() *BucketHandler {
 //	@Router			/api/v1/buckets [get]
 func (h *BucketHandler) ListBuckets(c fiber.Ctx) error {
 	ctx := c.Context()
-	admin := getAdminService(c)
 
-	buckets, err := listBucketsBatch(ctx, admin)
-	if errors.Is(err, services.ErrUnsupported) {
-		buckets, err = listBucketsOneByOne(ctx, admin)
-	}
+	items, err := services.ListBucketsWithInfo(ctx, getAdminService(c))
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(
 			models.ErrorResponse(models.ErrCodeListFailed, "Failed to list buckets: "+err.Error()),
 		)
+	}
+
+	buckets := make([]models.BucketInfo, 0, len(items))
+	for _, item := range items {
+		// Without a global alias Kuraban has no name to address the bucket by.
+		if len(item.Bucket.GlobalAliases) == 0 {
+			continue
+		}
+		bucket := models.BucketInfo{Name: item.Bucket.GlobalAliases[0], CreationDate: item.Bucket.Created}
+		if item.Info != nil {
+			bucket.ObjectCount = &item.Info.Objects
+			bucket.Size = &item.Info.Bytes
+			bucket.WebsiteAccess = item.Info.WebsiteAccess
+			bucket.WebsiteConfig = item.Info.WebsiteConfig
+			bucket.Quotas = item.Info.Quotas
+		}
+		buckets = append(buckets, bucket)
 	}
 
 	if subj, ok := authz.SubjectFrom(c); ok {
@@ -55,83 +63,6 @@ func (h *BucketHandler) ListBuckets(c fiber.Ctx) error {
 	}
 
 	return c.JSON(models.SuccessResponse(response))
-}
-
-// Buckets without a global alias have no name Kuraban can address them by, so
-// both list paths skip them.
-func listBucketsBatch(ctx context.Context, admin services.AdminService) ([]models.BucketInfo, error) {
-	infos, err := admin.ListBucketsInfo(ctx)
-	if err != nil {
-		return nil, err
-	}
-	buckets := make([]models.BucketInfo, 0, len(infos))
-	for i := range infos {
-		if len(infos[i].GlobalAliases) > 0 {
-			buckets = append(buckets, bucketInfoFromDetails(infos[i].GlobalAliases[0], infos[i].Created, &infos[i]))
-		}
-	}
-	return buckets, nil
-}
-
-// listBucketsOneByOne serves Garage without ListBucketsInfo.
-func listBucketsOneByOne(ctx context.Context, admin services.AdminService) ([]models.BucketInfo, error) {
-	adminBuckets, err := admin.ListBuckets(ctx)
-	if err != nil {
-		return nil, err
-	}
-	details := make([]*models.GarageBucketInfo, len(adminBuckets))
-	forEachLimited(len(adminBuckets), func(i int) {
-		if len(adminBuckets[i].GlobalAliases) > 0 {
-			details[i], _ = admin.GetBucketInfoByAlias(ctx, adminBuckets[i].GlobalAliases[0])
-		}
-	})
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	buckets := make([]models.BucketInfo, 0, len(adminBuckets))
-	for i, adminBucket := range adminBuckets {
-		if len(adminBucket.GlobalAliases) == 0 {
-			continue
-		}
-		bucketName := adminBucket.GlobalAliases[0]
-		if details[i] == nil {
-			// If we can't get detailed info, return basic info without stats
-			buckets = append(buckets, models.BucketInfo{Name: bucketName, CreationDate: adminBucket.Created})
-			continue
-		}
-		buckets = append(buckets, bucketInfoFromDetails(bucketName, adminBucket.Created, details[i]))
-	}
-	return buckets, nil
-}
-
-// forEachLimited calls fn(0..n-1) with a few running at once, for the one request
-// per item that Garage without batch lists needs: one at a time, a thousand items
-// outlast the request timeout.
-func forEachLimited(n int, fn func(i int)) {
-	sem := make(chan struct{}, 8)
-	var wg sync.WaitGroup
-	for i := range n {
-		wg.Add(1)
-		sem <- struct{}{}
-		go func() {
-			defer wg.Done()
-			defer func() { <-sem }()
-			fn(i)
-		}()
-	}
-	wg.Wait()
-}
-
-func bucketInfoFromDetails(name string, created time.Time, details *models.GarageBucketInfo) models.BucketInfo {
-	return models.BucketInfo{
-		Name:          name,
-		CreationDate:  created,
-		ObjectCount:   &details.Objects,
-		Size:          &details.Bytes,
-		WebsiteAccess: details.WebsiteAccess,
-		WebsiteConfig: details.WebsiteConfig,
-		Quotas:        details.Quotas,
-	}
 }
 
 // CreateBucket creates a new bucket

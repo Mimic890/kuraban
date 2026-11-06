@@ -2,7 +2,6 @@ package telemetry
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 
@@ -375,48 +374,25 @@ func BucketName(b models.ListBucketsResponseItem) string {
 }
 
 func bucketSamples(ctx context.Context, admin services.AdminService) ([]Sample, error) {
-	buckets, err := admin.ListBuckets(ctx)
+	buckets, err := services.ListBucketsWithInfo(ctx, admin)
 	if err != nil {
 		return nil, err
 	}
-	type res struct {
-		name string
-		info *models.GarageBucketInfo
-	}
-	results := make([]res, len(buckets))
-	sem := make(chan struct{}, 8)
-	var wg sync.WaitGroup
-	for i, b := range buckets {
-		wg.Add(1)
-		go func(i int, b models.ListBucketsResponseItem) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			info, err := admin.GetBucketInfo(ctx, b.ID)
-			if err == nil {
-				results[i] = res{name: BucketName(b), info: info}
-			}
-		}(i, b)
-	}
-	wg.Wait()
-	if ctx.Err() != nil {
-		return nil, errors.New("bucket scrape timed out")
-	}
 	var out []Sample
 	var bytes, objects, uploads, uploadBytes float64
-	for _, r := range results {
-		if r.info == nil {
+	for _, b := range buckets {
+		if b.Info == nil {
 			continue
 		}
-		l := map[string]string{"bucket": r.name}
+		l := map[string]string{"bucket": BucketName(b.Bucket)}
 		out = append(out,
-			Sample{Name: "bucket.bytes", Kind: KindGauge, Value: float64(r.info.Bytes), Labels: l},
-			Sample{Name: "bucket.objects", Kind: KindGauge, Value: float64(r.info.Objects), Labels: l},
+			Sample{Name: "bucket.bytes", Kind: KindGauge, Value: float64(b.Info.Bytes), Labels: l},
+			Sample{Name: "bucket.objects", Kind: KindGauge, Value: float64(b.Info.Objects), Labels: l},
 		)
-		bytes += float64(r.info.Bytes)
-		objects += float64(r.info.Objects)
-		uploads += float64(r.info.UnfinishedMultipartUploads)
-		uploadBytes += float64(r.info.UnfinishedMultipartUploadBytes)
+		bytes += float64(b.Info.Bytes)
+		objects += float64(b.Info.Objects)
+		uploads += float64(b.Info.UnfinishedMultipartUploads)
+		uploadBytes += float64(b.Info.UnfinishedMultipartUploadBytes)
 	}
 	out = append(out,
 		Sample{Name: "storage.bytes", Kind: KindGauge, Value: bytes},

@@ -85,7 +85,6 @@ Garage admin API v2.5.0 features and fixes still missing from the UI:
 - [ ] Multi-bucket permission editor for a key: one table of all buckets with Read/Write/Owner, saved at once.
 - [ ] Cluster layout: view, assign zone/capacity, preview, apply, revert (`GetClusterLayout`, `UpdateClusterLayout`, `PreviewClusterLayoutChanges`, `ApplyClusterLayout`, `RevertClusterLayout`, `GetClusterLayoutHistory`, `ClusterLayoutSkipDeadNodes`).
 - [ ] Block errors and workers: list block errors, retry resync, list workers (`ListBlockErrors`, `GetBlockInfo`, `RetryBlockResync`, `ListWorkers`, `GetWorkerInfo`).
-- [ ] Telemetry: use `ListBucketsInfo` instead of one `GetBucketInfo` per bucket.
 
 Not planned: Garage admin tokens (Kuraban itself runs on one), `PurgeBlocks` (irreversible data loss), `ImportKey`, `InspectObject`, worker variables. Per-key/per-bucket request stats are not possible: Garage metrics only carry `api_endpoint`.
 

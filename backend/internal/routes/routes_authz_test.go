@@ -200,8 +200,8 @@ func TestListBuckets_HTTPFiltersByPolicyAndAddsEffectivePermissions(t *testing.T
 			{ID: "id-x", Created: time.Unix(0, 0), GlobalAliases: []string{"denied-x"}},
 		}, nil
 	}
-	f.Admin.GetBucketInfoByAliasFn = func(_ context.Context, alias string) (*models.GarageBucketInfo, error) {
-		return &models.GarageBucketInfo{ID: alias, Objects: 0, Bytes: 0}, nil
+	f.Admin.GetBucketInfoFn = func(_ context.Context, id string) (*models.GarageBucketInfo, error) {
+		return &models.GarageBucketInfo{ID: id, Objects: 0, Bytes: 0}, nil
 	}
 
 	req := httptest.NewRequest("GET", "/api/v1/buckets", nil)
