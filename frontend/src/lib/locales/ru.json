@@ -820,7 +820,7 @@
   "settings.about.charts": "Графики",
   "settings.about.click": "Клик по легенде",
   "settings.about.clustersDesc": "Добавление, удаление и переключение кластеров Garage.",
-  "settings.about.desc": "Веб-интерфейс для объектного хранилища Garage.",
+  "settings.about.desc": "Веб-интерфейс для объектного хранилища Garage. Название от японского 蔵番 (курабан): хранитель склада.",
   "settings.about.drag": "Выделение на графике",
   "settings.about.kLegend": "Показать только серию (Ctrl — скрыть/показать)",
   "settings.about.kPalette": "Командная палитра",

@@ -820,7 +820,7 @@
   "settings.about.charts": "Charts",
   "settings.about.click": "Click legend",
   "settings.about.clustersDesc": "Add, remove and switch Garage clusters.",
-  "settings.about.desc": "Web interface for the Garage object storage.",
+  "settings.about.desc": "Web interface for the Garage object storage. The name comes from the Japanese 蔵番 (kuraban): keeper of a storehouse.",
   "settings.about.drag": "Drag on chart",
   "settings.about.kLegend": "Isolate a series (Ctrl — toggle)",
   "settings.about.kPalette": "Command palette",
