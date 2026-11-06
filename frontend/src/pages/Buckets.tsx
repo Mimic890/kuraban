@@ -8,6 +8,7 @@ import { CreateBucketDialog } from '@/components/buckets/CreateBucketDialog';
 import { DeleteBucketDialog } from '@/components/buckets/DeleteBucketDialog';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
+import { RefreshButton } from '@/components/ui/refresh-button';
 import { bucketsApi } from '@/lib/api';
 import type { Bucket } from '@/types';
 import { useClusterStore } from '@/store/cluster-store';
@@ -23,7 +24,8 @@ export function Buckets() {
   const [deleteTarget, setDeleteTarget] = useState<Bucket | null>(null);
 
   const { hasAnyPerm } = usePermissions();
-  const { data: buckets = [], isLoading, isError, refetch } = useBuckets();
+  const bucketsQuery = useBuckets();
+  const { data: buckets = [], isLoading, isError, refetch } = bucketsQuery;
   const createMutation = useCreateBucket();
   const deleteMutation = useDeleteBucket();
   const { clusters } = useClusterStore();
@@ -41,7 +43,8 @@ export function Buckets() {
     return <Navigate to="/" replace />;
   }
 
-  if (isError) {
+  // A failed refresh keeps showing the saved list; RefreshButton reports the failure.
+  if (isError && buckets.length === 0) {
     return (
       <div>
         <PageHeader title={t('buckets.title')} subtitle={t('buckets.errors.load_failed')} />
@@ -58,11 +61,14 @@ export function Buckets() {
         title={t('buckets.title')}
         subtitle={t('buckets.summary.count', { count: buckets.length.toLocaleString(language) })}
         actions={
-          hasAnyPerm('bucket.create') && (
-            <Button onClick={() => setCreateOpen(true)}>
-              <Plus /> {t('buckets.create')}
-            </Button>
-          )
+          <>
+            <RefreshButton query={bucketsQuery} />
+            {hasAnyPerm('bucket.create') && (
+              <Button onClick={() => setCreateOpen(true)}>
+                <Plus /> {t('buckets.create')}
+              </Button>
+            )}
+          </>
         }
       />
       <div className="p-4 sm:p-6">

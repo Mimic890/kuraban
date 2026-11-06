@@ -4,6 +4,7 @@ import type { AuthConfig, AuthUser, AuthState, LoginResult } from '@/types/auth'
 import { authApi } from '@/lib/api';
 import { safeReturnUrl } from '@/lib/auth';
 import { translate } from '@/lib/i18n';
+import { clearListCache } from '@/lib/list-cache';
 
 interface AuthStore extends AuthState {
   config: AuthConfig | null;
@@ -203,6 +204,7 @@ export const useAuthStore = create<AuthStore>()(
         }
 
         // Clear state
+        clearListCache();
         set({
           user: null,
           isAuthenticated: false,

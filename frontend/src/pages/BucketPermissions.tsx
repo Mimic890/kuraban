@@ -13,7 +13,7 @@ import { useTranslation } from '@/lib/i18n';
 export function BucketPermissions() {
   const { t } = useTranslation();
   const { bucketName = '' } = useParams<{ bucketName: string }>();
-  const { data: availableKeys = [] } = useAccessKeys();
+  const { data: availableKeys = [], isFetching } = useAccessKeys();
   const grant = useGrantBucketPermission();
 
   const [selectedKey, setSelectedKey] = useState('');
@@ -35,7 +35,8 @@ export function BucketPermissions() {
     setOwner(existing?.owner ?? false);
   }, [selectedKey, availableKeys, bucketName]);
 
-  const canSubmit = !!selectedKey && !grant.isPending;
+  // Granting overwrites the key's permissions, so wait for the saved list to be confirmed.
+  const canSubmit = !!selectedKey && !grant.isPending && !isFetching;
 
   const onGrant = async () => {
     if (!selectedKey) { toast.error(t('bucket_permissions.select_access_key_error')); return; }

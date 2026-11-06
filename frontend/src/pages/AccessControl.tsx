@@ -1,7 +1,8 @@
-import {useEffect, useMemo, useRef, useState} from 'react';
+import {useMemo, useRef, useState} from 'react';
 import {cn} from '@/lib/utils';
 import {PageHeader} from '@/components/ui/page-header';
 import {Button} from '@/components/ui/button';
+import {RefreshButton} from '@/components/ui/refresh-button';
 import {Input} from '@/components/ui/input';
 import {Badge} from '@/components/ui/badge';
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow,} from '@/components/ui/table';
@@ -31,10 +32,11 @@ import {useQueryClient} from '@tanstack/react-query';
 import { useClusterStore } from '@/store/cluster-store';
 import { Navigate } from 'react-router-dom';
 import {accessApi, bucketsApi} from '@/lib/api';
+import {useAccessKeys, useBuckets} from '@/hooks/useApi';
 import {queryKeys} from '@/lib/query-client';
 import { useTranslation } from '@/lib/i18n';
 import {dateTimeInputToIso, dateTimeInputValue} from '@/lib/utils';
-import type {AccessKey, Bucket, BucketPermission} from '@/types';
+import type {AccessKey, BucketPermission} from '@/types';
 import {AlertTriangle, Calendar, Check, Copy, Database, Edit, Eye, EyeOff, Key, KeyRound, Loader2, MoreVertical, Plus, Search, ShieldCheck, ShieldX, Trash2,} from 'lucide-react';
 import {toast} from 'sonner';
 import { copyText } from '@/lib/clipboard';
@@ -118,9 +120,9 @@ export function AccessControl() {
   const formatLocalizedDate = (date: Date | string) => new Intl.DateTimeFormat(language, {
     year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
   }).format(new Date(date));
-  const [keys, setKeys] = useState<AccessKey[]>([]);
+  const keysQuery = useAccessKeys();
+  const {data: keys = [], isLoading, isFetching: keysFetching} = keysQuery;
   const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedKey, setSelectedKey] = useState<AccessKey | null>(null);
@@ -128,7 +130,6 @@ export function AccessControl() {
   const { clusters } = useClusterStore();
 
   // Create key with permissions state
-  const [createAvailableBuckets, setCreateAvailableBuckets] = useState<Bucket[]>([]);
   const [createSelectedBucket, setCreateSelectedBucket] = useState<string>('');
   const [createPermissionRead, setCreatePermissionRead] = useState(false);
   const [createPermissionWrite, setCreatePermissionWrite] = useState(false);
@@ -139,7 +140,6 @@ export function AccessControl() {
   // Edit permissions state
   const [editPermissionsDialogOpen, setEditPermissionsDialogOpen] = useState(false);
   const [editingKey, setEditingKey] = useState<AccessKey | null>(null);
-  const [availableBuckets, setAvailableBuckets] = useState<Bucket[]>([]);
   const [selectedBucket, setSelectedBucket] = useState<string>('');
   const [permissionRead, setPermissionRead] = useState(false);
   const [permissionWrite, setPermissionWrite] = useState(false);
@@ -165,22 +165,7 @@ export function AccessControl() {
   const [isLoadingDetailsSecretKey, setIsLoadingDetailsSecretKey] = useState(false);
   const secretRequestRef = useRef(0);
   const creatingKeyRef = useRef(false);
-
-  useEffect(() => {
-    const fetchKeys = async () => {
-      try {
-        setIsLoading(true);
-        const data = await accessApi.listKeys();
-        setKeys(data);
-      } catch (error) {
-        console.error('Failed to fetch keys:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchKeys();
-  }, []);
+  const {data: dialogBuckets = []} = useBuckets(createDialogOpen || editPermissionsDialogOpen);
 
   const filteredKeys = useMemo(
     () =>
@@ -228,8 +213,6 @@ export function AccessControl() {
       setNewlyCreatedKey(newKey);
 
       // Refresh keys list
-      const data = await accessApi.listKeys();
-      setKeys(data);
       queryClient.invalidateQueries({ queryKey: queryKeys.accessKeys.all });
       if (createGrantPermissions && createSelectedBucket) {
          queryClient.invalidateQueries({ queryKey: queryKeys.buckets.all });
@@ -254,7 +237,7 @@ export function AccessControl() {
     setNewlyCreatedKey(null);
   };
 
-  const handleOpenCreateDialog = async () => {
+  const handleOpenCreateDialog = () => {
     setCreateDialogOpen(true);
     setNewKeyName('');
     setCreateSelectedBucket('');
@@ -262,14 +245,6 @@ export function AccessControl() {
     setCreatePermissionWrite(false);
     setCreatePermissionOwner(false);
     setCreateGrantPermissions(false);
-
-    // Load available buckets
-    try {
-      const buckets = await bucketsApi.list();
-      setCreateAvailableBuckets(buckets);
-    } catch (error) {
-      console.error('Failed to load buckets:', error);
-    }
   };
 
   const handleDeleteKey = async () => {
@@ -282,8 +257,6 @@ export function AccessControl() {
       setSelectedKey(null);
 
       // Refresh keys list
-      const data = await accessApi.listKeys();
-      setKeys(data);
       queryClient.invalidateQueries({ queryKey: queryKeys.accessKeys.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.buckets.all });
       toast.success(t('access_control.key_deleted_success').replace('{{name}}', keyName));
@@ -329,8 +302,6 @@ export function AccessControl() {
       await accessApi.updateKey(settingsKey.accessKeyId, updates);
 
       // Refresh keys list
-      const data = await accessApi.listKeys();
-      setKeys(data);
       queryClient.invalidateQueries({ queryKey: queryKeys.accessKeys.all });
 
       setSettingsDialogOpen(false);
@@ -359,21 +330,14 @@ export function AccessControl() {
     }
   };
 
-  const handleOpenEditPermissions = async (key: AccessKey) => {
-    setEditingKey(key);
+  const handleOpenEditPermissions = (key: AccessKey) => {
+    // The details dialog holds a snapshot, which a refresh may have outdated.
+    setEditingKey(keys.find((k) => k.accessKeyId === key.accessKeyId) ?? key);
     setEditPermissionsDialogOpen(true);
     setSelectedBucket('');
     setPermissionRead(false);
     setPermissionWrite(false);
     setPermissionOwner(false);
-
-    // Load available buckets
-    try {
-      const buckets = await bucketsApi.list();
-      setAvailableBuckets(buckets);
-    } catch (error) {
-      console.error('Failed to load buckets:', error);
-    }
   };
 
   const handleBucketChange = (bucketName: string) => {
@@ -428,8 +392,6 @@ export function AccessControl() {
       setPermissionOwner(false);
 
       // Refresh keys list to update permissions
-      const data = await accessApi.listKeys();
-      setKeys(data);
       queryClient.invalidateQueries({ queryKey: queryKeys.accessKeys.all });
        queryClient.invalidateQueries({ queryKey: queryKeys.buckets.all });
     } catch (error) {
@@ -474,7 +436,7 @@ export function AccessControl() {
 
   return (
     <div>
-      <PageHeader title={t('nav.access')} subtitle={t('access_control.page_subtitle')} />
+      <PageHeader title={t('nav.access')} subtitle={t('access_control.page_subtitle')} actions={<RefreshButton query={keysQuery} />} />
       <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
         <Tabs defaultValue="keys">
           <TabsContent value="keys" className="space-y-4 sm:space-y-6 mt-4 sm:mt-6">
@@ -630,11 +592,12 @@ export function AccessControl() {
                                  {t('access_control.view_secret_key_action')}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleOpenEditPermissions(key)}>
+                              {/* These dialogs prefill from the list and overwrite on save, so wait until it is confirmed. */}
+                              <DropdownMenuItem data-disabled={keysFetching || undefined} onClick={() => handleOpenEditPermissions(key)}>
                                 <Edit className="h-4 w-4" />
                                  {t('access_control.edit_permissions_action')}
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleOpenSettings(key)}>
+                              <DropdownMenuItem data-disabled={keysFetching || undefined} onClick={() => handleOpenSettings(key)}>
                                 {key.status === 'active' ? (
                                   <>
                                     <ShieldX className="h-4 w-4" />
@@ -776,7 +739,7 @@ export function AccessControl() {
                           onChange={(value) => setCreateSelectedBucket(value)}
                         >
                            <SelectOption value="">{t('access_control.select_bucket_placeholder')}</SelectOption>
-                          {createAvailableBuckets.map((bucket) => (
+                          {dialogBuckets.map((bucket) => (
                             <SelectOption key={bucket.name} value={bucket.name}>
                               {bucket.name}
                             </SelectOption>
@@ -1093,6 +1056,7 @@ export function AccessControl() {
           <DialogFooter>
             <Button
               variant="secondary"
+              disabled={keysFetching}
               onClick={() => {
                 setKeyDetailsDialogOpen(false);
                 if (viewingKey) {
@@ -1125,7 +1089,7 @@ export function AccessControl() {
                <label className="text-[0.8125rem] font-medium">{t('access_control.bucket_label')}</label>
               <Select value={selectedBucket} onChange={(value) => handleBucketChange(value)}>
                  <SelectOption value="">{t('access_control.select_bucket_placeholder')}</SelectOption>
-                {availableBuckets.map((bucket) => (
+                {dialogBuckets.map((bucket) => (
                   <SelectOption key={bucket.name} value={bucket.name}>
                     {bucket.name}
                   </SelectOption>

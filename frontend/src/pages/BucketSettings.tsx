@@ -86,7 +86,7 @@ export function BucketSettings() {
   const { t, language } = useTranslation();
   const { bucketName = '' } = useParams<{ bucketName: string }>();
   const navigate = useNavigate();
-  const { data: buckets = [], isLoading } = useBuckets();
+  const { data: buckets = [], isLoading, isFetching } = useBuckets();
   const bucket = buckets.find((b) => b.name === bucketName);
   const deleteMutation = useDeleteBucket();
   const updateQuotasMutation = useUpdateBucketQuotas();
@@ -127,7 +127,8 @@ export function BucketSettings() {
   const objectsBelowCurrent =
     newMaxObjects !== null && bucket?.objectCount != null && newMaxObjects < currentObjects;
 
-  if (isLoading) {
+  // The saved list can be older than the bucket, so wait before saying it does not exist.
+  if (isLoading || (!bucket && isFetching)) {
     return <div className="px-7 py-6 text-[0.8438rem] text-[var(--muted-foreground)]">{t('buckets.common.loading')}</div>;
   }
   if (!bucket) {
@@ -274,7 +275,8 @@ export function BucketSettings() {
           </div>
 
           <div className="flex items-center gap-3 border-t border-[var(--border)] pt-4">
-            <Button type="submit" disabled={!isDirty || isSubmitting}>
+            {/* Saving overwrites the quotas, so the form must not rest on an unconfirmed saved list. */}
+            <Button type="submit" disabled={!isDirty || isSubmitting || isFetching}>
               {t('buckets.actions.save_changes')}
             </Button>
             <Button

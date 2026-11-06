@@ -17,7 +17,7 @@ export function BucketWebsite() {
   const { t } = useTranslation();
   const { bucketName = '' } = useParams<{ bucketName: string }>();
   const queryClient = useQueryClient();
-  const { data: buckets = [], isLoading } = useBuckets();
+  const { data: buckets = [], isLoading, isFetching } = useBuckets();
   const bucket = buckets.find((b) => b.name === bucketName);
 
   const [enabled, setEnabled] = useState(false);
@@ -33,7 +33,8 @@ export function BucketWebsite() {
     setErrorDocument(bucket.websiteConfig?.errorDocument ?? '');
   }, [bucket?.name, bucket?.websiteAccess, bucket?.websiteConfig?.indexDocument, bucket?.websiteConfig?.errorDocument]);
 
-  if (isLoading) {
+  // The saved list can be older than the bucket, so wait before saying it does not exist.
+  if (isLoading || (!bucket && isFetching)) {
     return <div className="px-7 py-6 text-[0.8438rem] text-[var(--muted-foreground)]">{t('buckets.common.loading')}</div>;
   }
   if (!bucket) {
@@ -75,7 +76,8 @@ export function BucketWebsite() {
     }
   };
 
-  const saveDisabled = saving || (enabled && !indexDocument);
+  // Saving overwrites the config, so the form must not rest on an unconfirmed saved list.
+  const saveDisabled = saving || isFetching || (enabled && !indexDocument);
 
   return (
     <div className="px-7 py-6">

@@ -1,18 +1,39 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { bucketsApi, accessApi, garageApi, analyticsApi } from '@/lib/api';
 import { queryKeys } from '@/lib/query-client';
+import { readListCache, writeListCache } from '@/lib/list-cache';
 import { toast } from 'sonner';
 import { useClusterStore } from '@/store/cluster-store';
+import { useAuthStore } from '@/store/auth-store';
 import { useTranslation } from '@/lib/i18n';
 
 
-export function useBuckets(enabled = true) {
+// Shows the list saved on this device at once and refreshes it in the background.
+function useCachedList<T>(name: string, queryKey: (clusterId: string | null) => QueryKey, fetchList: () => Promise<T[]>, enabled: boolean) {
   const activeClusterId = useClusterStore((state) => state.activeClusterId);
+  const username = useAuthStore((state) => state.user?.username);
+  const cacheKey = username && activeClusterId ? `${username}:${activeClusterId}:${name}` : null;
   return useQuery({
-    queryKey: queryKeys.buckets.list(activeClusterId),
-    queryFn: () => bucketsApi.list(),
+    queryKey: queryKey(activeClusterId),
+    queryFn: async () => {
+      const list = await fetchList();
+      // shortcut: a superseded slow request can still save an older list, the next page open corrects it.
+      if (cacheKey) writeListCache(cacheKey, list);
+      return list;
+    },
+    initialData: () => (cacheKey ? readListCache<T>(cacheKey) : undefined),
+    // Saved lists always count as stale, so opening a page checks for new data.
+    initialDataUpdatedAt: 0,
+    // The default keeps the previous key's data, which here is another cluster's list.
+    placeholderData: undefined,
+    staleTime: 30 * 1000,
+    refetchOnMount: true,
     enabled: enabled && !!activeClusterId,
   });
+}
+
+export function useBuckets(enabled = true) {
+  return useCachedList('buckets', queryKeys.buckets.list, bucketsApi.list, enabled);
 }
 
 export function useCreateBucket() {
@@ -84,12 +105,7 @@ export function useUpdateBucketQuotas() {
 
 
 export function useAccessKeys(enabled = true) {
-  const activeClusterId = useClusterStore((state) => state.activeClusterId);
-  return useQuery({
-    queryKey: queryKeys.accessKeys.list(activeClusterId),
-    queryFn: () => accessApi.listKeys(),
-    enabled: enabled && !!activeClusterId,
-  });
+  return useCachedList('keys', queryKeys.accessKeys.list, accessApi.listKeys, enabled);
 }
 
 export function useClusterHealth(enabled = true) {

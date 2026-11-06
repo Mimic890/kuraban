@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import api from '@/lib/api';
 import { translate } from '@/lib/i18n';
+import { clearListCache } from '@/lib/list-cache';
 
 export interface ClusterConfig {
   id: string;
@@ -79,6 +80,7 @@ export const useClusterStore = create<ClusterStore>()(
         try {
           set({ isLoading: true, error: null });
           await api.delete(`/v1/panel/clusters/${id}`);
+          clearListCache();
           const clusters = get().clusters.filter((c) => c.id !== id);
           set({ clusters, isLoading: false });
           
