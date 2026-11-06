@@ -71,7 +71,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             <img src="/garage.png" alt="" className="h-5 w-5 shrink-0 object-contain" />
             {!collapsed && (
               <span className="truncate text-[0.875rem] font-semibold tracking-tight text-[var(--foreground)]">
-                Kuraban<span className="text-[var(--muted-foreground)] font-normal"> 蔵番</span>
+                Kuraban
               </span>
             )}
           </Link>
