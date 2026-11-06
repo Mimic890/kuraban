@@ -222,7 +222,7 @@ func (s *Store) evalQuery(ctx context.Context, cluster string, q Query, tier Tie
 			return err
 		}
 		for _, si := range list {
-			if !matches(si.Labels, q.Match) {
+			if isDen && !matchesPresent(si.Labels, q.Match) || !isDen && !matches(si.Labels, q.Match) {
 				continue
 			}
 			key := ""
@@ -462,6 +462,18 @@ func finalize(c cell, q Query, step int64) (float64, bool) {
 func matches(labels, match map[string]string) bool {
 	for k, v := range match {
 		if labels[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
+// matchesPresent checks only the labels a series carries: a denominator often
+// lacks the numerator's labels (s3.requests has no class), and those must not
+// empty it.
+func matchesPresent(labels, match map[string]string) bool {
+	for k, v := range match {
+		if got, ok := labels[k]; ok && got != v {
 			return false
 		}
 	}

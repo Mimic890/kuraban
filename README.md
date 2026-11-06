@@ -87,7 +87,6 @@ Garage admin API v2.5.0 features and fixes still missing from the UI:
 - [ ] Cluster layout: view, assign zone/capacity, preview, apply, revert (`GetClusterLayout`, `UpdateClusterLayout`, `PreviewClusterLayoutChanges`, `ApplyClusterLayout`, `RevertClusterLayout`, `GetClusterLayoutHistory`, `ClusterLayoutSkipDeadNodes`).
 - [ ] Block errors and workers: list block errors, retry resync, list workers (`ListBlockErrors`, `GetBlockInfo`, `RetryBlockResync`, `ListWorkers`, `GetWorkerInfo`).
 - [ ] Telemetry: use `ListBucketsInfo` instead of one `GetBucketInfo` per bucket.
-- [ ] S3 error ratio: fix the 5xx series never rendering. The `class=5xx` filter is also applied to `s3.requests`, which has no such label, so the denominator is empty (`backend/internal/telemetry/query.go`).
 - [ ] S3 error ratio: raise the red alert on 5xx only, at most yellow for 4xx (`frontend/src/pages/Dashboard.tsx`). A normal 404 on `HeadObject` should not raise an alert.
 - [ ] S3 error ratio: no bare percentage at low traffic. One failed request a minute shows 100%, and the card keeps that value while idle. Show "2 of 3 requests" or use a longer window.
 

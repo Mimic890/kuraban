@@ -379,3 +379,51 @@ func TestRangeCounterSingleRollupBucket(t *testing.T) {
 		t.Errorf("total increase = %v, want %v", total, 19*30)
 	}
 }
+
+func TestRatioFilterKeepsDenominatorWithoutThatLabel(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	base := time.Now().Add(-5 * time.Minute).Truncate(time.Second)
+	for i := 0; i < 5; i++ {
+		v := float64(i)
+		samples := []Sample{
+			{Name: "s3.requests", Kind: KindCounter, Value: v * 100, Labels: map[string]string{"endpoint": "Get"}},
+			{Name: "s3.errors", Kind: KindCounter, Value: v * 10, Labels: map[string]string{"endpoint": "Get", "class": "5xx"}},
+			{Name: "s3.errors", Kind: KindCounter, Value: v * 20, Labels: map[string]string{"endpoint": "Head", "class": "4xx"}},
+		}
+		if err := s.Write(ctx, "c1", base.Add(time.Duration(i*15)*time.Second), samples); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ratio := func(match map[string]string) *float64 {
+		t.Helper()
+		resp, err := s.Range(ctx, "c1", RangeRequest{From: base.Unix(), To: base.Add(time.Minute).Unix(), Step: 15, Queries: []Query{
+			{ID: "r", Metric: "s3.errors", Fn: FnRatio, Denominator: "s3.requests", Match: match, Scale: 100},
+		}}, 15)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(resp.Series) == 0 {
+			return nil
+		}
+		var last *float64
+		for _, v := range resp.Series[0].Values {
+			if v != nil {
+				last = v
+			}
+		}
+		return last
+	}
+
+	if got := ratio(map[string]string{"class": "5xx"}); got == nil || math.Abs(*got-10) > 0.01 {
+		t.Errorf("5xx ratio = %v, want 10", got)
+	}
+	// No 5xx series at all still gives a flat zero, not a missing line.
+	if got := ratio(map[string]string{"class": "none"}); got == nil || *got != 0 {
+		t.Errorf("ratio with no matching errors = %v, want 0", got)
+	}
+	// A label the denominator does carry still narrows it.
+	if got := ratio(map[string]string{"endpoint": "Head"}); got != nil {
+		t.Errorf("ratio with an empty denominator = %v, want no value", *got)
+	}
+}
