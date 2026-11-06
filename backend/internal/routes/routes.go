@@ -200,7 +200,8 @@ func SetupRoutes(
 		buckets.Delete("/:name", az.Require(authz.BucketFromParam("name"), authz.PermBucketDelete), bucketHandler.DeleteBucket)                                               // Delete a bucket
 		buckets.Post("/:name/permissions", az.Require(authz.BucketFromParam("name"), authz.PermAllowBucketKey, authz.PermDenyBucketKey), bucketHandler.GrantBucketPermission) // Grant bucket permissions (allow+deny)
 		buckets.Put("/:name/website", az.Require(authz.BucketFromParam("name"), authz.PermBucketUpdate), bucketHandler.UpdateBucketWebsite)                                   // Update bucket website configuration
-		buckets.Put("/:name/quotas", az.Require(authz.BucketFromParam("name"), authz.PermBucketUpdate), bucketHandler.UpdateBucketQuotas)                                     // Update bucket quotas
+		buckets.Put("/:name/quotas", az.Require(authz.BucketFromParam("name"), authz.PermBucketUpdate), bucketHandler.UpdateBucketQuotas)
+		buckets.Post("/:name/cleanup-uploads", az.Require(authz.BucketFromParam("name"), authz.PermBucketCleanup), bucketHandler.CleanupUploads) // Update bucket quotas
 	}
 
 	// Object routes

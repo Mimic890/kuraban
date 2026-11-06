@@ -1,21 +1,24 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BucketHistory } from '@/components/buckets/BucketHistory';
-import { AlertTriangle, Gauge, Info } from 'lucide-react';
+import { AlertTriangle, Eraser, Gauge, Info } from 'lucide-react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useBuckets, useDeleteBucket, useUpdateBucketQuotas } from '@/hooks/useApi';
+import { useBuckets, useCleanupBucketUploads, useDeleteBucket, useUpdateBucketQuotas } from '@/hooks/useApi';
+import { useCapabilities } from '@/hooks/useCapabilities';
 import { useBucketCan } from '@/hooks/usePermissions';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { DeleteBucketDialog } from '@/components/buckets/DeleteBucketDialog';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Select, SelectOption } from '@/components/ui/select';
 import { formatBytes } from '@/lib/file-utils';
 import { formatDate as formatDateUtil } from '@/lib/utils';
+import type { Bucket } from '@/types';
 import { useTranslation } from '@/lib/i18n';
 import {
   bytesToQuotaValue,
@@ -91,6 +94,7 @@ export function BucketSettings() {
   const deleteMutation = useDeleteBucket();
   const updateQuotasMutation = useUpdateBucketQuotas();
   const canBucket = useBucketCan();
+  const { data: capabilities } = useCapabilities();
 
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -291,6 +295,10 @@ export function BucketSettings() {
         </form>
       </section>
 
+      {capabilities?.features.cleanupUploads && canBucket(bucket, 'bucket.cleanup_uploads') && (
+        <IncompleteUploads bucket={bucket} refreshing={isFetching} />
+      )}
+
       {/* Danger zone */}
       {canBucket(bucket, 'bucket.delete') && (
         <section className="rounded-xl border border-[var(--danger-border)] bg-[var(--card)]">
@@ -329,6 +337,73 @@ export function BucketSettings() {
         }}
       />
     </div>
+  );
+}
+
+// The server refuses anything under an hour, see minCleanupAgeSecs in handlers/buckets.go.
+const CLEANUP_AGES = [
+  { secs: 3600, label: 'buckets.settings.uploads.age_hour' },
+  { secs: 86400, label: 'buckets.settings.uploads.age_day' },
+  { secs: 604800, label: 'buckets.settings.uploads.age_week' },
+];
+
+function IncompleteUploads({ bucket, refreshing }: { bucket: Bucket; refreshing: boolean }) {
+  const { t, language } = useTranslation();
+  const cleanup = useCleanupBucketUploads();
+  const [ageSecs, setAgeSecs] = useState(86400);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const count = bucket.unfinishedUploads;
+  const totals = {
+    count: count != null ? count.toLocaleString(language) : '—',
+    size: formatBytesOrDash(bucket.unfinishedUploadBytes),
+  };
+  const ageLabel = t(CLEANUP_AGES.find((a) => a.secs === ageSecs)!.label);
+
+  return (
+    <section className="rounded-xl border border-[var(--border)] bg-[var(--card)]">
+      <header className="flex items-center gap-2 border-b border-[var(--border)] px-5 py-3">
+        <Eraser className="h-4 w-4 text-[var(--primary)]" />
+        <h2 className="text-[0.9375rem] font-semibold">{t('buckets.settings.uploads.heading')}</h2>
+      </header>
+      <div className="space-y-4 px-5 py-5">
+        <div>
+          <p className="text-[0.875rem] font-medium">{count === 0 ? t('buckets.settings.uploads.none') : t('buckets.settings.uploads.summary', totals)}</p>
+          <p className="mt-1 text-[0.8125rem] text-[var(--muted-foreground)]">{t('buckets.settings.uploads.description')}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-[0.875rem]">
+            <span>{t('buckets.settings.uploads.older_than')}</span>
+            <Select value={String(ageSecs)} onChange={(v) => setAgeSecs(Number(v))} className="w-32">
+              {CLEANUP_AGES.map((a) => (
+                <SelectOption key={a.secs} value={String(a.secs)}>
+                  {t(a.label)}
+                </SelectOption>
+              ))}
+            </Select>
+          </label>
+          {/* The saved list can be out of date, so act only on a confirmed count. */}
+          <Button variant="secondary" disabled={refreshing || count === 0} onClick={() => setConfirmOpen(true)}>
+            {t('buckets.settings.uploads.action')}
+          </Button>
+        </div>
+      </div>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={t('buckets.settings.uploads.confirm_title')}
+        description={t('buckets.settings.uploads.confirm_description', { bucket: bucket.name, age: ageLabel, ...totals })}
+        confirmLabel={t('buckets.settings.uploads.action')}
+        icon={<Eraser />}
+        loading={cleanup.isPending}
+        onConfirm={() =>
+          cleanup.mutate(
+            { bucketName: bucket.name, olderThanSecs: ageSecs },
+            { onSettled: () => setConfirmOpen(false) }
+          )
+        }
+      />
+    </section>
   );
 }
 

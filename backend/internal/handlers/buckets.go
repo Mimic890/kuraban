@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"errors"
+
 	"Mimic890/kuraban/internal/authz"
 	"Mimic890/kuraban/internal/models"
 	"Mimic890/kuraban/internal/services"
@@ -49,6 +51,8 @@ func (h *BucketHandler) ListBuckets(c fiber.Ctx) error {
 			bucket.WebsiteAccess = item.Info.WebsiteAccess
 			bucket.WebsiteConfig = item.Info.WebsiteConfig
 			bucket.Quotas = item.Info.Quotas
+			bucket.UnfinishedUploads = &item.Info.UnfinishedUploads
+			bucket.UnfinishedUploadBytes = &item.Info.UnfinishedMultipartUploadBytes
 		}
 		buckets = append(buckets, bucket)
 	}
@@ -63,6 +67,68 @@ func (h *BucketHandler) ListBuckets(c fiber.Ctx) error {
 	}
 
 	return c.JSON(models.SuccessResponse(response))
+}
+
+// minCleanupAgeSecs keeps a cleanup away from uploads running right now: Garage
+// aborts everything older than the age it is given, and at 0 that means all of them.
+const minCleanupAgeSecs = 3600
+
+// CleanupUploads aborts a bucket's unfinished uploads older than the given age
+//
+//	@Summary		Clean up incomplete uploads
+//	@Description	Aborts unfinished uploads older than the given age, including any still in progress, and deletes their data. Requires Garage admin API v2.
+//	@Tags			Buckets
+//	@Accept			json
+//	@Produce		json
+//	@Param			name	path		string							true	"Bucket name"
+//	@Param			request	body		models.CleanupUploadsRequest	true	"Minimum age of the uploads to abort, at least 3600 seconds"
+//	@Success		200		{object}	models.APIResponse{data=models.CleanupUploadsResponse}
+//	@Failure		400		{object}	models.APIResponse{error=models.APIError}
+//	@Failure		404		{object}	models.APIResponse{error=models.APIError}
+//	@Failure		500		{object}	models.APIResponse{error=models.APIError}
+//	@Failure		501		{object}	models.APIResponse{error=models.APIError}
+//	@Router			/api/v1/buckets/{name}/cleanup-uploads [post]
+func (h *BucketHandler) CleanupUploads(c fiber.Ctx) error {
+	ctx := c.Context()
+
+	var req models.CleanupUploadsRequest
+	if err := c.Bind().JSON(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(
+			models.ErrorResponse(models.ErrCodeBadRequest, "Invalid request body: "+err.Error()),
+		)
+	}
+	if req.OlderThanSecs < minCleanupAgeSecs {
+		return c.Status(fiber.StatusBadRequest).JSON(
+			models.ErrorResponse(models.ErrCodeBadRequest, "olderThanSecs must be at least 3600"),
+		)
+	}
+
+	// Garage answers 200 for an unknown bucket ID, so check the bucket first.
+	bucketInfo, err := getAdminService(c).GetBucketInfoByAlias(ctx, c.Params("name"))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(
+			models.ErrorResponse(models.ErrCodeInternalError, "Failed to get bucket info: "+err.Error()),
+		)
+	}
+	if bucketInfo == nil {
+		return c.Status(fiber.StatusNotFound).JSON(
+			models.ErrorResponse(models.ErrCodeBucketNotFound, "Bucket does not exist"),
+		)
+	}
+
+	deleted, err := getAdminService(c).CleanupIncompleteUploads(ctx, bucketInfo.ID, req.OlderThanSecs)
+	if errors.Is(err, services.ErrUnsupported) {
+		return c.Status(fiber.StatusNotImplemented).JSON(
+			models.ErrorResponse(models.ErrCodeUnsupported, "This feature requires Garage v2.0+"),
+		)
+	}
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(
+			models.ErrorResponse(models.ErrCodeInternalError, "Failed to clean up uploads: "+err.Error()),
+		)
+	}
+
+	return c.JSON(models.SuccessResponse(models.CleanupUploadsResponse{UploadsDeleted: deleted}))
 }
 
 // CreateBucket creates a new bucket

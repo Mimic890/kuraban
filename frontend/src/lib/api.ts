@@ -342,6 +342,14 @@ export const bucketsApi = {
     );
     return response.data.data;
   },
+
+  cleanupUploads: async (name: string, olderThanSecs: number) => {
+    const response = await api.post<ApiResponse<{ uploadsDeleted: number }>>(
+      `/v1/buckets/${encodeURIComponent(name)}/cleanup-uploads`,
+      { olderThanSecs }
+    );
+    return response.data.data!;
+  },
 };
 
 // Objects API

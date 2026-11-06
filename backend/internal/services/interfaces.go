@@ -31,6 +31,7 @@ type AdminService interface {
 	GetBucketInfoByAlias(ctx context.Context, globalAlias string) (*models.GarageBucketInfo, error)
 	CreateBucket(ctx context.Context, req models.CreateBucketAdminRequest) (*models.GarageBucketInfo, error)
 	UpdateBucket(ctx context.Context, bucketID string, req models.UpdateBucketRequest) (*models.GarageBucketInfo, error)
+	CleanupIncompleteUploads(ctx context.Context, bucketID string, olderThanSecs int64) (int64, error)
 	DeleteBucket(ctx context.Context, bucketID string) error
 	AllowBucketKey(ctx context.Context, req models.BucketKeyPermRequest) (*models.GarageBucketInfo, error)
 	DenyBucketKey(ctx context.Context, req models.BucketKeyPermRequest) (*models.GarageBucketInfo, error)

@@ -52,9 +52,22 @@ type BucketInfo struct {
 	WebsiteConfig *BucketWebsiteConfig `json:"websiteConfig,omitempty"`
 	Quotas        *BucketQuotas        `json:"quotas,omitempty"`
 
+	UnfinishedUploads     *int64 `json:"unfinishedUploads,omitempty"`
+	UnfinishedUploadBytes *int64 `json:"unfinishedUploadBytes,omitempty"`
+
 	// EffectivePermissions is the caller's prefix-scoped permissions on this
 	// bucket, computed server-side. Omitted when access control is disabled.
 	EffectivePermissions []string `json:"effective_permissions,omitempty"`
+}
+
+// CleanupUploadsRequest asks to abort unfinished uploads older than the given age.
+type CleanupUploadsRequest struct {
+	OlderThanSecs int64 `json:"olderThanSecs"`
+}
+
+// CleanupUploadsResponse reports how many uploads were aborted.
+type CleanupUploadsResponse struct {
+	UploadsDeleted int64 `json:"uploadsDeleted"`
 }
 
 // BucketListResponse represents a list of buckets

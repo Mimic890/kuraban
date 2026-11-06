@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"Mimic890/kuraban/internal/models"
+	"Mimic890/kuraban/internal/services"
 	"Mimic890/kuraban/internal/services/mocks"
 
 	"github.com/gofiber/fiber/v3"
@@ -31,6 +32,7 @@ func newBucketsTestApp(t *testing.T) (*fiber.App, *mocks.AdminMock) {
 	app.Post("/buckets/:name/permissions", h.GrantBucketPermission)
 	app.Put("/buckets/:name/website", h.UpdateBucketWebsite)
 	app.Put("/buckets/:name/quotas", h.UpdateBucketQuotas)
+	app.Post("/buckets/:name/cleanup-uploads", h.CleanupUploads)
 	return app, admin
 }
 
@@ -674,5 +676,87 @@ func TestListBuckets_BatchFailureIsNotHiddenByFallback(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusInternalServerError {
 		t.Errorf("status = %d", resp.StatusCode)
+	}
+}
+
+func postCleanup(t *testing.T, app *fiber.App, body string) *http.Response {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/buckets/alpha/cleanup-uploads", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	t.Cleanup(func() { resp.Body.Close() })
+	return resp
+}
+
+func TestCleanupUploads_RefusesAgeThatWouldHitRunningUploads(t *testing.T) {
+	for _, body := range []string{`{}`, `{"olderThanSecs":0}`, `{"olderThanSecs":3599}`, `{"olderThanSecs":-1}`} {
+		app, admin := newBucketsTestApp(t)
+		admin.CleanupUploadsFn = func(context.Context, string, int64) (int64, error) {
+			t.Errorf("%s reached Garage", body)
+			return 0, nil
+		}
+		if resp := postCleanup(t, app, body); resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("%s: status = %d", body, resp.StatusCode)
+		}
+	}
+}
+
+func TestCleanupUploads_ResolvesNameToIDAndReportsCount(t *testing.T) {
+	app, admin := newBucketsTestApp(t)
+	admin.GetBucketInfoByAliasFn = func(_ context.Context, alias string) (*models.GarageBucketInfo, error) {
+		return &models.GarageBucketInfo{ID: "id-of-" + alias}, nil
+	}
+	admin.CleanupUploadsFn = func(_ context.Context, id string, age int64) (int64, error) {
+		if id != "id-of-alpha" || age != 86400 {
+			t.Errorf("id = %q, age = %d", id, age)
+		}
+		return 7, nil
+	}
+	resp := postCleanup(t, app, `{"olderThanSecs":86400}`)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	var body struct {
+		Data models.CleanupUploadsResponse `json:"data"`
+	}
+	decodeJSON(t, resp.Body, &body)
+	if body.Data.UploadsDeleted != 7 {
+		t.Errorf("uploadsDeleted = %d", body.Data.UploadsDeleted)
+	}
+}
+
+func TestCleanupUploads_Failures(t *testing.T) {
+	found := func(context.Context, string) (*models.GarageBucketInfo, error) {
+		return &models.GarageBucketInfo{ID: "x"}, nil
+	}
+	cases := []struct {
+		name    string
+		lookup  func(context.Context, string) (*models.GarageBucketInfo, error)
+		cleanup func(context.Context, string, int64) (int64, error)
+		want    int
+	}{
+		{"missing bucket", func(context.Context, string) (*models.GarageBucketInfo, error) { return nil, nil }, nil, http.StatusNotFound},
+		{"lookup fails", func(context.Context, string) (*models.GarageBucketInfo, error) { return nil, errors.New("boom") }, nil, http.StatusInternalServerError},
+		{"v1 admin API", found, func(context.Context, string, int64) (int64, error) { return 0, services.ErrUnsupported }, http.StatusNotImplemented},
+		{"cleanup fails", found, func(context.Context, string, int64) (int64, error) { return 0, errors.New("boom") }, http.StatusInternalServerError},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			app, admin := newBucketsTestApp(t)
+			admin.GetBucketInfoByAliasFn = tc.lookup
+			admin.CleanupUploadsFn = tc.cleanup
+			if tc.cleanup == nil {
+				admin.CleanupUploadsFn = func(context.Context, string, int64) (int64, error) {
+					t.Error("cleanup ran without a bucket")
+					return 0, nil
+				}
+			}
+			if resp := postCleanup(t, app, `{"olderThanSecs":3600}`); resp.StatusCode != tc.want {
+				t.Errorf("status = %d, want %d", resp.StatusCode, tc.want)
+			}
+		})
 	}
 }

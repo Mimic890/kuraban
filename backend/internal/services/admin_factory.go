@@ -19,6 +19,7 @@ type Capabilities struct {
 	ClusterStatistics bool `json:"clusterStatistics"`
 	NodeInfo          bool `json:"nodeInfo"`
 	NodeStatistics    bool `json:"nodeStatistics"`
+	CleanupUploads    bool `json:"cleanupUploads"`
 }
 
 func CapabilitiesV2() Capabilities {
@@ -26,6 +27,7 @@ func CapabilitiesV2() Capabilities {
 		ClusterStatistics: true,
 		NodeInfo:          true,
 		NodeStatistics:    true,
+		CleanupUploads:    true,
 	}
 }
 

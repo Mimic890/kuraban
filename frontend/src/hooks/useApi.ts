@@ -103,6 +103,24 @@ export function useUpdateBucketQuotas() {
   });
 }
 
+export function useCleanupBucketUploads() {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  return useMutation({
+    mutationFn: ({ bucketName, olderThanSecs }: { bucketName: string; olderThanSecs: number }) =>
+      bucketsApi.cleanupUploads(bucketName, olderThanSecs),
+    onSuccess: ({ uploadsDeleted }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.buckets.all });
+      if (uploadsDeleted > 0) {
+        toast.success(t('api.uploads_cleaned_success', { count: uploadsDeleted }));
+      } else {
+        toast.info(t('api.uploads_cleaned_none'));
+      }
+    },
+  });
+}
+
 
 export function useAccessKeys(enabled = true) {
   return useCachedList('keys', queryKeys.accessKeys.list, accessApi.listKeys, enabled);

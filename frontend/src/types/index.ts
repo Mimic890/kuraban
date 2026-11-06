@@ -16,6 +16,8 @@ export interface Bucket {
     errorDocument?: string;
   };
   quotas?: BucketQuotas | null;
+  unfinishedUploads?: number;
+  unfinishedUploadBytes?: number;
   effective_permissions?: string[];
 }
 
@@ -231,6 +233,7 @@ export interface GarageCapabilities {
     clusterStatistics: boolean;
     nodeInfo: boolean;
     nodeStatistics: boolean;
+    cleanupUploads: boolean;
   };
   access_control?: AccessControlInfo;
 }

@@ -242,6 +242,26 @@ func TestListBuckets_HTTPFiltersByPolicyAndAddsEffectivePermissions(t *testing.T
 	}
 }
 
+// Deleting upload data takes its own permission, even on a bucket the team can see.
+func TestCleanupUploads_RequiresItsPermission(t *testing.T) {
+	f, token := newEnabledPolicyFixture(t)
+	f.Admin.CleanupUploadsFn = func(context.Context, string, int64) (int64, error) {
+		t.Error("cleanup ran without the permission")
+		return 0, nil
+	}
+	req := httptest.NewRequest("POST", "/api/v1/buckets/allowed-a/cleanup-uploads", strings.NewReader(`{"olderThanSecs":3600}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := f.App.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("status = %d, want 403", resp.StatusCode)
+	}
+}
+
 // TestPreviewTokenGrantsObjectGET exercises the full production chain: group
 // cascade AuthMiddleware accepts the token, ResolveSubject finds no user,
 // and Require allows via the preview claims instead of a subject.

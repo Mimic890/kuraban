@@ -225,6 +225,11 @@ func (s *GarageV1AdminService) GetClusterStatus(ctx context.Context) (*models.Cl
 	}, nil
 }
 
+// The v1 admin API has no such endpoint.
+func (s *GarageV1AdminService) CleanupIncompleteUploads(ctx context.Context, bucketID string, olderThanSecs int64) (int64, error) {
+	return 0, ErrUnsupported
+}
+
 func (s *GarageV1AdminService) GetClusterStatistics(ctx context.Context) (*models.ClusterStatistics, error) {
 	return nil, ErrUnsupported
 }

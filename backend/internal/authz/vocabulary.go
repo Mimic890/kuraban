@@ -33,6 +33,7 @@ const (
 	PermBucketCreate      = "bucket.create"
 	PermBucketUpdate      = "bucket.update"
 	PermBucketDelete      = "bucket.delete"
+	PermBucketCleanup     = "bucket.cleanup_uploads"
 	PermObjectList        = "object.list"
 	PermObjectRead        = "object.read"
 	PermObjectWrite       = "object.write"

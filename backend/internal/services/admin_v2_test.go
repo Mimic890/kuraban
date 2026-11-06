@@ -289,6 +289,24 @@ func TestUpdateBucket_UsesIDQueryAndPostsBody(t *testing.T) {
 	}
 }
 
+func TestCleanupIncompleteUploads_PostsBodyAndReturnsCount(t *testing.T) {
+	var body map[string]any
+	svc, _ := newAdminTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/v2/CleanupIncompleteUploads" {
+			t.Errorf("%s %s", r.Method, r.URL.Path)
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		_, _ = w.Write([]byte(`{"uploadsDeleted":3}`))
+	}))
+	got, err := svc.CleanupIncompleteUploads(context.Background(), "B", 3600)
+	if err != nil || got != 3 {
+		t.Fatalf("got %d, %v", got, err)
+	}
+	if body["bucketId"] != "B" || body["olderThanSecs"] != float64(3600) {
+		t.Errorf("body = %v", body)
+	}
+}
+
 func TestDeleteBucket_PostWithIDQuery(t *testing.T) {
 	h, rec := recordingHandler(t, http.StatusOK, nil)
 	svc, _ := newAdminTestServer(t, h)

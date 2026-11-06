@@ -45,7 +45,7 @@ export function ConfirmDialog({
       <DialogContent>
         <DialogHeader>
           <IconTile icon={icon ?? defaultIcon} tone={tone} size="md" />
-          <div className="flex-1">
+          <div className="min-w-0 flex-1 pr-6">
             <DialogTitle>{title}</DialogTitle>
             {description && <DialogDescription>{description}</DialogDescription>}
           </div>

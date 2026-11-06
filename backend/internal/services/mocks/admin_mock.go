@@ -43,6 +43,7 @@ type AdminMock struct {
 	GetBucketInfoByAliasFn func(ctx context.Context, alias string) (*models.GarageBucketInfo, error)
 	CreateBucketFn         func(ctx context.Context, req models.CreateBucketAdminRequest) (*models.GarageBucketInfo, error)
 	UpdateBucketFn         func(ctx context.Context, bucketID string, req models.UpdateBucketRequest) (*models.GarageBucketInfo, error)
+	CleanupUploadsFn       func(ctx context.Context, bucketID string, olderThanSecs int64) (int64, error)
 	DeleteBucketFn         func(ctx context.Context, bucketID string) error
 	AllowBucketKeyFn       func(ctx context.Context, req models.BucketKeyPermRequest) (*models.GarageBucketInfo, error)
 	DenyBucketKeyFn        func(ctx context.Context, req models.BucketKeyPermRequest) (*models.GarageBucketInfo, error)
@@ -177,6 +178,14 @@ func (m *AdminMock) UpdateBucket(ctx context.Context, bucketID string, req model
 		return nil, errNotConfigured("UpdateBucket")
 	}
 	return m.UpdateBucketFn(ctx, bucketID, req)
+}
+
+func (m *AdminMock) CleanupIncompleteUploads(ctx context.Context, bucketID string, olderThanSecs int64) (int64, error) {
+	m.record("CleanupIncompleteUploads", bucketID, olderThanSecs)
+	if m.CleanupUploadsFn == nil {
+		return 0, errNotConfigured("CleanupIncompleteUploads")
+	}
+	return m.CleanupUploadsFn(ctx, bucketID, olderThanSecs)
 }
 
 func (m *AdminMock) DeleteBucket(ctx context.Context, bucketID string) error {

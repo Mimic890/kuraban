@@ -258,6 +258,36 @@ func (s *GarageV2AdminService) DeleteBucket(ctx context.Context, bucketID string
 	return nil
 }
 
+// CleanupIncompleteUploads aborts uploads older than the given age, including any
+// still in progress, and returns how many it aborted.
+func (s *GarageV2AdminService) CleanupIncompleteUploads(ctx context.Context, bucketID string, olderThanSecs int64) (int64, error) {
+	log := logpkg.FromCtx(ctx).With().
+		Str("component", "admin").
+		Str("operation", "cleanup_incomplete_uploads").
+		Str("bucket_id", bucketID).
+		Int64("older_than_secs", olderThanSecs).
+		Logger()
+
+	log.Info().Msg("cleaning up incomplete uploads")
+	start := time.Now()
+
+	resp, err := s.http.doRequest(ctx, http.MethodPost, "/v2/CleanupIncompleteUploads", map[string]any{"bucketId": bucketID, "olderThanSecs": olderThanSecs})
+	if err != nil {
+		log.Error().Err(err).Float64("duration_ms", msSince(start)).Str("outcome", "failure").Msg("garage cleanup_incomplete_uploads request failed")
+		return 0, fmt.Errorf("request failed: %w", err)
+	}
+
+	var result models.CleanupUploadsResponse
+	if err := decodeResponse(resp, &result); err != nil {
+		log.Error().Err(err).Float64("duration_ms", msSince(start)).Str("outcome", "failure").Msg("garage cleanup_incomplete_uploads decode failed")
+		return 0, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	log.Info().Int64("uploads_deleted", result.UploadsDeleted).Float64("duration_ms", msSince(start)).Str("outcome", "success").Msg("incomplete uploads cleaned up")
+	s.http.invalidateBucketInfo(bucketID, nil)
+	return result.UploadsDeleted, nil
+}
+
 // AllowBucketKey grants permissions for a key on a bucket.
 func (s *GarageV2AdminService) AllowBucketKey(ctx context.Context, req models.BucketKeyPermRequest) (*models.GarageBucketInfo, error) {
 	log := logpkg.FromCtx(ctx).With().
