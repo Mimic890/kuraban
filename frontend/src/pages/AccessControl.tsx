@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { IconTile } from '@/components/ui/icon-tile';
+import { KeyPermissionsDialog } from '@/components/access/KeyPermissionsDialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   DropdownMenu,
@@ -137,14 +138,7 @@ export function AccessControl() {
   const [createGrantPermissions, setCreateGrantPermissions] = useState(false);
   const [newlyCreatedKey, setNewlyCreatedKey] = useState<AccessKey | null>(null);
 
-  // Edit permissions state
-  const [editPermissionsDialogOpen, setEditPermissionsDialogOpen] = useState(false);
-  const [editingKey, setEditingKey] = useState<AccessKey | null>(null);
-  const [selectedBucket, setSelectedBucket] = useState<string>('');
-  const [permissionRead, setPermissionRead] = useState(false);
-  const [permissionWrite, setPermissionWrite] = useState(false);
-  const [permissionOwner, setPermissionOwner] = useState(false);
-  const [savingPermissions, setSavingPermissions] = useState(false);
+  const [editingKeyId, setEditingKeyId] = useState<string | null>(null);
 
   // Key settings state (activation/expiration)
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
@@ -165,7 +159,10 @@ export function AccessControl() {
   const [isLoadingDetailsSecretKey, setIsLoadingDetailsSecretKey] = useState(false);
   const secretRequestRef = useRef(0);
   const creatingKeyRef = useRef(false);
-  const {data: dialogBuckets = []} = useBuckets(createDialogOpen || editPermissionsDialogOpen);
+  const {data: dialogBuckets = []} = useBuckets(createDialogOpen);
+
+  // Always the live entry: the table compares against it, and a refresh may have changed it.
+  const editingKey = keys.find((k) => k.accessKeyId === editingKeyId);
 
   const filteredKeys = useMemo(
     () =>
@@ -327,78 +324,6 @@ export function AccessControl() {
       setSecretKeyDialogOpen(false);
     } finally {
       if (request === secretRequestRef.current) setIsLoadingSecretKey(false);
-    }
-  };
-
-  const handleOpenEditPermissions = (key: AccessKey) => {
-    // The details dialog holds a snapshot, which a refresh may have outdated.
-    setEditingKey(keys.find((k) => k.accessKeyId === key.accessKeyId) ?? key);
-    setEditPermissionsDialogOpen(true);
-    setSelectedBucket('');
-    setPermissionRead(false);
-    setPermissionWrite(false);
-    setPermissionOwner(false);
-  };
-
-  const handleBucketChange = (bucketName: string) => {
-    setSelectedBucket(bucketName);
-
-    if (!bucketName || !editingKey) {
-      // Reset permissions if no bucket selected
-      setPermissionRead(false);
-      setPermissionWrite(false);
-      setPermissionOwner(false);
-      return;
-    }
-
-    // Find if this key already has permissions on the selected bucket
-    const bucketPermission = editingKey.permissions.find(
-      perm => perm.bucketName === bucketName || perm.bucketId === bucketName
-    );
-
-    if (bucketPermission) {
-      // Set the checkboxes to reflect current permissions
-      setPermissionRead(bucketPermission.read);
-      setPermissionWrite(bucketPermission.write);
-      setPermissionOwner(bucketPermission.owner);
-    } else {
-      // No permissions set yet, reset checkboxes
-      setPermissionRead(false);
-      setPermissionWrite(false);
-      setPermissionOwner(false);
-    }
-  };
-
-  const handleGrantBucketPermission = async () => {
-    if (!editingKey || !selectedBucket) {
-      toast.error(t('access_control.bucket_required_error'));
-      return;
-    }
-
-    setSavingPermissions(true);
-    try {
-      // Call backend API to grant bucket permissions
-      await bucketsApi.grantPermission(selectedBucket, editingKey.accessKeyId, {
-        read: permissionRead,
-        write: permissionWrite,
-        owner: permissionOwner,
-      });
-
-      toast.success(t('access_control.permissions_granted_success').replace('{{bucket}}', selectedBucket));
-      setEditPermissionsDialogOpen(false);
-      setSelectedBucket('');
-      setPermissionRead(false);
-      setPermissionWrite(false);
-      setPermissionOwner(false);
-
-      // Refresh keys list to update permissions
-      queryClient.invalidateQueries({ queryKey: queryKeys.accessKeys.all });
-       queryClient.invalidateQueries({ queryKey: queryKeys.buckets.all });
-    } catch (error) {
-      // Error toast is handled by API interceptor
-      console.error('Grant permission error:', error);
-    } finally {
-      setSavingPermissions(false);
     }
   };
 
@@ -593,7 +518,7 @@ export function AccessControl() {
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               {/* These dialogs prefill from the list and overwrite on save, so wait until it is confirmed. */}
-                              <DropdownMenuItem data-disabled={keysFetching || undefined} onClick={() => handleOpenEditPermissions(key)}>
+                              <DropdownMenuItem data-disabled={keysFetching || undefined} onClick={() => setEditingKeyId(key.accessKeyId)}>
                                 <Edit className="h-4 w-4" />
                                  {t('access_control.edit_permissions_action')}
                               </DropdownMenuItem>
@@ -1060,7 +985,7 @@ export function AccessControl() {
               onClick={() => {
                 setKeyDetailsDialogOpen(false);
                 if (viewingKey) {
-                  handleOpenEditPermissions(viewingKey);
+                  setEditingKeyId(viewingKey.accessKeyId);
                 }
               }}
             >
@@ -1072,139 +997,14 @@ export function AccessControl() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Permissions Dialog */}
-      <Dialog open={editPermissionsDialogOpen} onOpenChange={setEditPermissionsDialogOpen} size="form">
-        <DialogContent>
-          <DialogHeader>
-            <IconTile icon={<Edit />} tone="primary" size="md" />
-            <div className="min-w-0 flex-1">
-               <DialogTitle className="truncate">{t('access_control.permissions_dialog_title').replace('{{name}}', editingKey?.name ?? '')}</DialogTitle>
-              <DialogDescription>
-                 {t('access_control.permissions_dialog_description')}
-              </DialogDescription>
-            </div>
-          </DialogHeader>
-          <DialogBody className="space-y-5">
-            <div className="space-y-1.5">
-               <label className="text-[0.8125rem] font-medium">{t('access_control.bucket_label')}</label>
-              <Select value={selectedBucket} onChange={(value) => handleBucketChange(value)}>
-                 <SelectOption value="">{t('access_control.select_bucket_placeholder')}</SelectOption>
-                {dialogBuckets.map((bucket) => (
-                  <SelectOption key={bucket.name} value={bucket.name}>
-                    {bucket.name}
-                  </SelectOption>
-                ))}
-              </Select>
-            </div>
-
-            {selectedBucket && (
-              <>
-                <div className="space-y-1.5">
-                   <label className="text-[0.8125rem] font-medium">{t('access_control.permissions_label')}</label>
-                  <div className="divide-y divide-[var(--border)] rounded-md border border-[var(--border)]">
-                    {[
-                      {
-                        id: 'edit-permission-read',
-                       label: t('access_control.permission_read'),
-                        desc: 'GetObject, HeadObject, ListObjects',
-                        checked: permissionRead,
-                        setChecked: setPermissionRead,
-                      },
-                      {
-                        id: 'edit-permission-write',
-                       label: t('access_control.permission_write'),
-                        desc: 'PutObject, DeleteObject',
-                        checked: permissionWrite,
-                        setChecked: setPermissionWrite,
-                      },
-                      {
-                        id: 'edit-permission-owner',
-                       label: t('access_control.permission_owner'),
-                        desc: 'DeleteBucket, PutBucketPolicy',
-                        checked: permissionOwner,
-                        setChecked: setPermissionOwner,
-                      },
-                    ].map((p) => (
-                      <label
-                        key={p.id}
-                        htmlFor={p.id}
-                        className="flex cursor-pointer items-start gap-3 px-3.5 py-3 transition-colors hover:bg-[var(--accent)]"
-                      >
-                        <Checkbox
-                          id={p.id}
-                          checked={p.checked}
-                          className="mt-0.5"
-                          onCheckedChange={(checked) => p.setChecked(checked as boolean)}
-                        />
-                        <div className="flex-1">
-                          <div className="text-[0.8438rem] font-medium">{p.label}</div>
-                          <p className="mt-0.5 font-mono text-[0.75rem] text-[var(--muted-foreground)]">
-                            {p.desc}
-                          </p>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                {editingKey && (() => {
-                  const current = editingKey.permissions.find(
-                    (perm) => perm.bucketName === selectedBucket || perm.bucketId === selectedBucket,
-                  );
-                  const hasAny = current && (current.read || current.write || current.owner);
-                  return (
-                    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-sunken)] px-3.5 py-3">
-                      <div className="text-[0.6875rem] font-medium uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
-                         {t('access_control.currently_granted')}
-                      </div>
-                      {hasAny ? (
-                        <div className="mt-1.5 flex flex-wrap gap-1.5">
-                           {current!.read && <Badge variant="neutral">{t('access_control.permission_read')}</Badge>}
-                           {current!.write && <Badge variant="neutral">{t('access_control.permission_write')}</Badge>}
-                           {current!.owner && <Badge variant="warning">{t('access_control.permission_owner')}</Badge>}
-                        </div>
-                      ) : (
-                        <p className="mt-1 text-[0.7812rem] text-[var(--muted-foreground)]">
-                           {t('access_control.no_permissions_for_bucket')}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })()}
-              </>
-            )}
-
-            {editingKey && editingKey.permissions.length > 0 && (
-              <div className="space-y-1.5">
-                <label className="text-[0.75rem] font-medium uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
-                   {t('access_control.all_bucket_permissions')}
-                </label>
-                <div className="max-h-48 divide-y divide-[var(--border)] overflow-y-auto rounded-md border border-[var(--border)]">
-                  {editingKey.permissions.map((perm, idx) => (
-                    <div key={idx} className="flex items-center justify-between gap-3 px-3.5 py-2.5">
-                      <span className="truncate font-mono text-[0.8125rem]">{perm.bucketName}</span>
-                      <div className="flex flex-shrink-0 gap-1">
-                         {perm.read && <Badge variant="neutral">{t('access_control.permission_read_short')}</Badge>}
-                         {perm.write && <Badge variant="neutral">{t('access_control.permission_write_short')}</Badge>}
-                         {perm.owner && <Badge variant="warning">{t('access_control.permission_owner_short')}</Badge>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </DialogBody>
-          <DialogFooter>
-            <Button variant="secondary" onClick={() => setEditPermissionsDialogOpen(false)}>
-               {t('common.cancel')}
-            </Button>
-            <Button onClick={handleGrantBucketPermission} disabled={!selectedBucket || savingPermissions}>
-              {savingPermissions && <Loader2 className="h-4 w-4 animate-spin" />}
-               {savingPermissions ? t('access_control.saving_permissions') : t('access_control.save_permissions_button')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {editingKey && (
+        <KeyPermissionsDialog
+          key={editingKey.accessKeyId}
+          accessKey={editingKey}
+          keysFetching={keysFetching}
+          onClose={() => setEditingKeyId(null)}
+        />
+      )}
     </div>
   );
 }

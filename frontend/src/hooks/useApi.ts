@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient, type QueryKey } from '@tanstack/
 import { bucketsApi, accessApi, garageApi, analyticsApi } from '@/lib/api';
 import { queryKeys } from '@/lib/query-client';
 import { readListCache, writeListCache } from '@/lib/list-cache';
+import { saveAllLimited, type PermissionChange } from '@/lib/key-permissions';
 import { toast } from 'sonner';
 import { useClusterStore } from '@/store/cluster-store';
 import { useAuthStore } from '@/store/auth-store';
@@ -78,6 +79,33 @@ export function useGrantBucketPermission() {
       queryClient.invalidateQueries({ queryKey: queryKeys.buckets.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.accessKeys.all });
       toast.success(t('api.permissions_granted_success'));
+    },
+  });
+}
+
+export function useSaveKeyPermissions() {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  return useMutation({
+    mutationFn: ({ accessKeyId, changes }: { accessKeyId: string; changes: PermissionChange[] }) =>
+      saveAllLimited(changes, ({ bucketName, permissions }) =>
+        bucketsApi.grantPermission(bucketName, accessKeyId, permissions, true),
+      ),
+    onSuccess: async (failures, { changes }) => {
+      // Waited for, so the dialog compares its rows against what was just saved.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.accessKeys.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.buckets.all }),
+      ]);
+      if (failures.length === 0) {
+        toast.success(t('api.key_permissions_saved', { count: changes.length }));
+      } else {
+        // Named here as well, since a bucket deleted meanwhile no longer has a row to show it.
+        toast.error(t('api.key_permissions_failed', { failed: failures.length, total: changes.length }), {
+          description: `${failures[0].bucketName}: ${failures[0].message}`,
+        });
+      }
     },
   });
 }

@@ -92,6 +92,11 @@ api.interceptors.response.use(
     // If response has success=false in data, treat it as an error
     if (response.data && response.data.success === false && response.data.error) {
       const error = response.data.error;
+      // Callers that render the error themselves want the reason, not the generic line.
+      if (response.config.silent) {
+        return Promise.reject(new Error(error.message));
+      }
+
       const errorMessage = translate('api.errors.generic');
       const errorCode = error.code || 'UNKNOWN_ERROR';
 
@@ -311,12 +316,13 @@ export const bucketsApi = {
   grantPermission: async (
     bucketName: string,
     accessKeyId: string,
-    permissions: { read: boolean; write: boolean; owner: boolean }
+    permissions: { read: boolean; write: boolean; owner: boolean },
+    silent = false
   ): Promise<void> => {
     await api.post(`/v1/buckets/${bucketName}/permissions`, {
       accessKeyId,
       permissions,
-    });
+    }, { silent });
   },
 
 
