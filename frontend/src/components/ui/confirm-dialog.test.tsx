@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { DialogContent, DialogTitle } from './dialog';
-import { GuardedDialog } from './confirm-dialog';
+import { ConfirmDialog, GuardedDialog } from './confirm-dialog';
 
 function Form({ dirty, onClose }: { dirty: boolean; onClose: () => void }) {
   const [, rerender] = useState(0);
@@ -59,3 +59,34 @@ describe('GuardedDialog', () => {
     expect(document.activeElement).toBe(second);
   });
 });
+
+describe('ConfirmDialog with a backup warning', () => {
+  const button = (name: RegExp) => screen.getByRole('button', { name }) as HTMLButtonElement;
+  const wait = (ms: number) => act(() => vi.advanceTimersByTime(ms));
+
+  it('holds the button back for 5 seconds, and again on every opening', () => {
+    vi.useFakeTimers();
+    try {
+      const onConfirm = vi.fn();
+      const dialog = (open: boolean) => <ConfirmDialog open={open} onOpenChange={vi.fn()} title="Apply?" backupWarning onConfirm={onConfirm} />;
+      const { rerender } = render(dialog(true));
+      expect(screen.getByRole('alert').textContent).toContain('backup');
+      expect(button(/Continue anyway \(5\)/).disabled).toBe(true);
+
+      for (let i = 0; i < 4; i++) wait(1000);
+      fireEvent.click(button(/Continue anyway \(1\)/));
+      expect(onConfirm).not.toHaveBeenCalled();
+
+      wait(1000);
+      fireEvent.click(button(/^Continue anyway$/));
+      expect(onConfirm).toHaveBeenCalledTimes(1);
+
+      rerender(dialog(false));
+      rerender(dialog(true));
+      expect(button(/Continue anyway \(5\)/).disabled).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+

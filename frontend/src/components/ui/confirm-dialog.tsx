@@ -25,7 +25,26 @@ interface ConfirmDialogProps {
   icon?: React.ReactNode;
   tone?: 'destructive' | 'primary';
   loading?: boolean;
+  /** For actions that can lose data: recommends a backup and holds the confirm button back for a few seconds. */
+  backupWarning?: boolean;
   onConfirm: () => void | Promise<void>;
+}
+
+const BACKUP_WAIT_SECONDS = 5;
+
+// Mounted only while its dialog is open, so every opening waits again.
+function WaitingButton({ label, disabled, ...props }: React.ComponentProps<typeof Button> & { label: string }) {
+  const [left, setLeft] = React.useState(BACKUP_WAIT_SECONDS);
+  React.useEffect(() => {
+    if (left === 0) return;
+    const timer = setTimeout(() => setLeft(left - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [left]);
+  return (
+    <Button {...props} disabled={disabled || left > 0} className="tabular-nums">
+      {left > 0 ? `${label} (${left})` : label}
+    </Button>
+  );
 }
 
 type GuardedDialogProps = React.ComponentProps<typeof Dialog> & {
@@ -75,10 +94,12 @@ export function ConfirmDialog({
   icon,
   tone = 'destructive',
   loading = false,
+  backupWarning = false,
   onConfirm,
 }: ConfirmDialogProps) {
   const { t } = useTranslation();
   const defaultIcon = tone === 'destructive' ? <Trash2 /> : <AlertTriangle />;
+  const variant = tone === 'destructive' ? 'destructive' : 'primary';
   return (
     <Dialog open={open} onOpenChange={onOpenChange} size="destructive">
       <DialogContent>
@@ -89,20 +110,30 @@ export function ConfirmDialog({
             {description && <DialogDescription>{description}</DialogDescription>}
           </div>
         </DialogHeader>
-        <DialogBody>
+        <DialogBody className="space-y-3">
+          {backupWarning && (
+            <p role="alert" className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2.5 text-[0.8438rem] font-medium">
+              {t('common.confirm.backup_warning')}
+            </p>
+          )}
           <p className="text-[0.8438rem] text-[var(--muted-foreground)]">{note ?? t('common.confirm.irreversible')}</p>
         </DialogBody>
         <DialogFooter>
           <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={loading}>
             {cancelLabel ?? t('common.actions.cancel')}
           </Button>
-          <Button
-            variant={tone === 'destructive' ? 'destructive' : 'primary'}
-            onClick={() => onConfirm()}
-            disabled={loading}
-          >
-            {loading ? t('common.status.working') : confirmLabel ?? t('common.actions.delete')}
-          </Button>
+          {backupWarning ? (
+            <WaitingButton
+              variant={variant}
+              label={loading ? t('common.status.working') : t('common.confirm.continue_anyway')}
+              disabled={loading}
+              onClick={() => onConfirm()}
+            />
+          ) : (
+            <Button variant={variant} onClick={() => onConfirm()} disabled={loading}>
+              {loading ? t('common.status.working') : confirmLabel ?? t('common.actions.delete')}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

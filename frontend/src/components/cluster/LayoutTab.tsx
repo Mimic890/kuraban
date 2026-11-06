@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Loader2, Pencil, Server, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -210,6 +210,13 @@ function StagedCard({ layout, history, nodes, canUpdate, canApply }: {
     },
   );
 
+  // The wait in the confirm dialog gives someone else time to change what it describes.
+  useEffect(() => {
+    if (confirming !== 'apply' || ready) return;
+    setConfirming(undefined);
+    toast.info(t('cluster.layout.apply_stale'));
+  }, [confirming, ready, t]);
+
   const roleIds = new Set([...layout.roles.map((r) => r.id), ...layout.stagedRoleChanges.map((c) => c.id)]);
   const downCount = nodes.filter((n) => !n.isUp && roleIds.has(n.id)).length;
   const removing = layout.stagedRoleChanges.some((c) => c.remove);
@@ -298,7 +305,7 @@ function StagedCard({ layout, history, nodes, canUpdate, canApply }: {
         title={t('cluster.layout.apply_title', { version: ready?.newLayout.version ?? '', cluster: clusterName })}
         note={applyNote}
         icon={<AlertTriangle />}
-        confirmLabel={t('cluster.layout.apply')}
+        backupWarning
         onConfirm={() => {
           setConfirming(undefined);
           if (ready) apply.mutate(ready.newLayout.version);
@@ -311,7 +318,8 @@ function StagedCard({ layout, history, nodes, canUpdate, canApply }: {
 function SkipDeadNodes({ history, nodes }: { history: LayoutHistory; nodes: ClusterNode[] }) {
   const { t } = useTranslation();
   const [acknowledged, setAcknowledged] = useState(false);
-  const [confirming, setConfirming] = useState(false);
+  // Fixed when the dialog opens: a poll must not turn what it describes into a forced skip.
+  const [confirming, setConfirming] = useState<{ version: number; force: boolean }>();
   const tracked = Object.keys(history.updateTrackers ?? {});
   const downCount = nodes.filter((n) => !n.isUp && tracked.includes(n.id)).length;
   // Same order as the Garage CLI: first skip nodes that have not taken up the new version.
@@ -319,7 +327,7 @@ function SkipDeadNodes({ history, nodes }: { history: LayoutHistory; nodes: Clus
   const force = history.minAck >= history.currentVersion;
 
   const skip = useLayoutAction(
-    () => garageApi.skipDeadNodes(history.currentVersion, force),
+    ({ version, force }: { version: number; force: boolean }) => garageApi.skipDeadNodes(version, force),
     ({ ackUpdated, syncUpdated }) => {
       const count = new Set([...ackUpdated, ...syncUpdated]).size;
       if (count === 0) toast.info(t('cluster.layout.skip_nothing'));
@@ -340,19 +348,19 @@ function SkipDeadNodes({ history, nodes }: { history: LayoutHistory; nodes: Clus
           {t('cluster.layout.force_ack')}
         </label>
       )}
-      <Button variant={force ? 'destructive' : 'secondary'} size="sm" disabled={skip.isPending || (force && !acknowledged)} onClick={() => setConfirming(true)}>
+      <Button variant={force ? 'destructive' : 'secondary'} size="sm" disabled={skip.isPending || (force && !acknowledged)} onClick={() => setConfirming({ version: history.currentVersion, force })}>
         {t(force ? 'cluster.layout.force' : 'cluster.layout.skip')}
       </Button>
       <ConfirmDialog
-        open={confirming}
-        onOpenChange={setConfirming}
-        title={t(force ? 'cluster.layout.force_title' : 'cluster.layout.skip_title', { version: history.currentVersion })}
-        note={t(force ? 'cluster.layout.force_note' : 'cluster.layout.skip_note')}
+        open={!!confirming}
+        onOpenChange={(open) => !open && setConfirming(undefined)}
+        title={t(confirming?.force ? 'cluster.layout.force_title' : 'cluster.layout.skip_title', { version: confirming?.version ?? '' })}
+        note={t(confirming?.force ? 'cluster.layout.force_note' : 'cluster.layout.skip_note')}
         icon={<AlertTriangle />}
-        confirmLabel={t(force ? 'cluster.layout.force' : 'cluster.layout.skip')}
+        backupWarning
         onConfirm={() => {
-          setConfirming(false);
-          skip.mutate(undefined);
+          setConfirming(undefined);
+          if (confirming) skip.mutate(confirming);
         }}
       />
     </div>
