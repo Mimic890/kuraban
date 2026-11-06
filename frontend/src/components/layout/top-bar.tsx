@@ -35,7 +35,7 @@ export function TopBar({ onMenuClick }: TopBarProps) {
   return (
     <header className="sticky top-0 z-30 flex h-12 w-full shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[var(--background)]/85 px-3 backdrop-blur md:px-4">
       {onMenuClick && (
-        <Button variant="ghost" size="icon-sm" className="md:hidden" onClick={onMenuClick} aria-label={t('layout.topBar.toggleNavigation')}>
+        <Button variant="ghost" size="icon-sm" className="lg:hidden" onClick={onMenuClick} aria-label={t('layout.topBar.toggleNavigation')}>
           <Menu className="h-4 w-4" />
         </Button>
       )}

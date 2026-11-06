@@ -57,11 +57,11 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   return (
     <TooltipProvider delayDuration={200}>
-      {isOpen && <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={onClose} />}
+      {isOpen && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={onClose} />}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex h-full flex-col border-r border-[var(--border)] bg-[var(--surface-sunken)] transition-[width,transform] duration-200 ease-out md:static md:translate-x-0',
-          collapsed ? 'md:w-[52px]' : 'md:w-56',
+          'fixed inset-y-0 left-0 z-50 flex h-full flex-col border-r border-[var(--border)] bg-[var(--surface-sunken)] transition-[width,transform] duration-200 ease-out lg:static lg:translate-x-0',
+          collapsed ? 'lg:w-[52px]' : 'lg:w-56',
           'w-64',
           isOpen ? 'translate-x-0' : '-translate-x-full',
         )}
@@ -75,7 +75,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               </span>
             )}
           </Link>
-          <button type="button" onClick={onClose} className="ml-auto rounded p-1 text-[var(--muted-foreground)] hover:text-[var(--foreground)] md:hidden" aria-label={t('layout.sidebar.close')}>
+          <button type="button" onClick={onClose} className="ml-auto rounded p-1 text-[var(--muted-foreground)] hover:text-[var(--foreground)] lg:hidden" aria-label={t('layout.sidebar.close')}>
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -110,7 +110,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             type="button"
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             className={cn(
-              'hidden md:flex h-8 items-center gap-2.5 rounded-md text-[0.8125rem] text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)] transition-colors',
+              'hidden lg:flex h-8 items-center gap-2.5 rounded-md text-[0.8125rem] text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)] transition-colors',
               collapsed ? 'w-8 justify-center' : 'w-full px-2.5',
             )}
             aria-label={sidebarCollapsed ? t('layout.sidebar.expand') : t('layout.sidebar.collapse')}
