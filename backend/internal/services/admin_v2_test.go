@@ -8,9 +8,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"Mimic890/kuraban/internal/models"
 	"Mimic890/kuraban/internal/state"
@@ -304,6 +307,71 @@ func TestCleanupIncompleteUploads_PostsBodyAndReturnsCount(t *testing.T) {
 	}
 	if body["bucketId"] != "B" || body["olderThanSecs"] != float64(3600) {
 		t.Errorf("body = %v", body)
+	}
+}
+
+// A node that is down, or one that stops answering, must not hide what the others say.
+func TestAskEveryNode_ProblemNodeDoesNotHideTheOthers(t *testing.T) {
+	stuck := make(chan struct{})
+	t.Cleanup(func() { close(stuck) })
+	svc, _ := newAdminTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch node := r.URL.Query().Get("node"); {
+		case r.URL.Path == "/v2/GetClusterStatus":
+			_, _ = w.Write([]byte(`{"nodes":[{"id":"up","isUp":true},{"id":"down","isUp":false},{"id":"stuck","isUp":true},{"id":"bad","isUp":true}]}`))
+		case node == "up":
+			_, _ = w.Write([]byte(`{"success":{"up":[{"blockHash":"abc"}]},"error":{}}`))
+		case node == "stuck":
+			select {
+			case <-stuck:
+			case <-r.Context().Done():
+			}
+		case node == "bad":
+			w.WriteHeader(http.StatusInternalServerError)
+		default:
+			t.Errorf("asked %s node=%q", r.URL.Path, node)
+		}
+	}))
+	start := time.Now()
+	got, err := svc.ListBlockErrors(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if time.Since(start) > nodeRequestTimeout+5*time.Second {
+		t.Errorf("took %v", time.Since(start))
+	}
+	if _, ok := got.Success["up"]; !ok || len(got.Success) != 1 {
+		t.Errorf("success = %v", got.Success)
+	}
+	for _, node := range []string{"down", "stuck", "bad"} {
+		if got.Error[node] == "" {
+			t.Errorf("no error for %s: %v", node, got.Error)
+		}
+	}
+}
+
+func TestRetryBlockResync_RequestBodies(t *testing.T) {
+	var bodies []string
+	var mu sync.Mutex
+	svc, _ := newAdminTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v2/GetClusterStatus" {
+			_, _ = w.Write([]byte(`{"nodes":[{"id":"n1","isUp":true}]}`))
+			return
+		}
+		b, _ := io.ReadAll(r.Body)
+		mu.Lock()
+		bodies = append(bodies, r.URL.Query().Get("node")+" "+string(b))
+		mu.Unlock()
+		_, _ = w.Write([]byte(`{"success":{},"error":{}}`))
+	}))
+	if _, err := svc.RetryBlockResync(context.Background(), "n2", "h"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.RetryAllBlockResync(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{`n2 {"blockHashes":["h"]}`, `n1 {"all":true}`}
+	if !reflect.DeepEqual(bodies, want) {
+		t.Errorf("bodies = %q, want %q", bodies, want)
 	}
 }
 

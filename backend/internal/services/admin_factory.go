@@ -20,6 +20,7 @@ type Capabilities struct {
 	NodeInfo          bool `json:"nodeInfo"`
 	NodeStatistics    bool `json:"nodeStatistics"`
 	CleanupUploads    bool `json:"cleanupUploads"`
+	WorkersAndBlocks  bool `json:"workersAndBlocks"`
 }
 
 func CapabilitiesV2() Capabilities {
@@ -28,6 +29,7 @@ func CapabilitiesV2() Capabilities {
 		NodeInfo:          true,
 		NodeStatistics:    true,
 		CleanupUploads:    true,
+		WorkersAndBlocks:  true,
 	}
 }
 

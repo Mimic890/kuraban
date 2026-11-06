@@ -100,6 +100,10 @@ All API routes under `/api/v1` require auth (JWT bearer token or OIDC cookie). `
 | GET | `/api/v1/cluster/statistics` | `cluster.GetStatistics` | Cluster stats (v2 only) |
 | GET | `/api/v1/cluster/nodes/:node_id` | `cluster.GetNodeInfo` | Per-node info (v2 only) |
 | GET | `/api/v1/cluster/nodes/:node_id/statistics` | `cluster.GetNodeStatistics` | Per-node stats (v2 only) |
+| GET | `/api/v1/cluster/nodes/:node_id/blocks/:hash` | `cluster.GetBlockInfo` | What references a block (v2 only) |
+| GET | `/api/v1/cluster/workers` | `cluster.ListWorkers` | Background workers, per node (v2 only) |
+| GET | `/api/v1/cluster/block-errors` | `cluster.ListBlockErrors` | Blocks that failed to resync, per node (v2 only) |
+| POST | `/api/v1/cluster/block-errors/retry` | `cluster.RetryBlockResync` | Retry one block or all (v2 only) |
 | GET | `/api/v1/monitoring/dashboard` | `monitoring.GetDashboardMetrics` | Aggregated dashboard metrics |
 | GET/PUT | `/api/v1/settings` | `settings.GetSettings` / `UpdateSettings` | Runtime settings (PUT: cluster admin) |
 | GET | `/api/v1/telemetry/status` | `telemetry.Status` | Collector + database status for X-Cluster-Id |

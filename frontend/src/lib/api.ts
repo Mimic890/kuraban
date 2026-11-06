@@ -9,6 +9,10 @@ import type {
   ClusterStatistics,
   ClusterStatus,
   GarageCapabilities,
+  BlockError,
+  BlockInfo,
+  PerNode,
+  WorkerInfo,
   MultiNodeResponse,
   MultiNodeStatisticsResponse,
   ObjectListResponse,
@@ -570,6 +574,27 @@ export const garageApi = {
 
   getNodeStatistics: async (nodeId: string): Promise<MultiNodeStatisticsResponse> => {
     const response = await api.get(`/v1/cluster/nodes/${nodeId}/statistics`);
+    return response.data.data;
+  },
+
+  listWorkers: async (): Promise<PerNode<WorkerInfo[]>> => {
+    const response = await api.get('/v1/cluster/workers');
+    return response.data.data;
+  },
+
+  listBlockErrors: async (): Promise<PerNode<BlockError[]>> => {
+    const response = await api.get('/v1/cluster/block-errors');
+    return response.data.data;
+  },
+
+  getBlockInfo: async (nodeId: string, hash: string): Promise<PerNode<BlockInfo>> => {
+    const response = await api.get(`/v1/cluster/nodes/${nodeId}/blocks/${hash}`);
+    return response.data.data;
+  },
+
+  // Retries one block on one node, or with no arguments, everything everywhere.
+  retryBlockResync: async (nodeId?: string, blockHash?: string): Promise<PerNode<{ count: number }>> => {
+    const response = await api.post('/v1/cluster/block-errors/retry', nodeId ? { nodeId, blockHash } : { all: true });
     return response.data.data;
   },
 

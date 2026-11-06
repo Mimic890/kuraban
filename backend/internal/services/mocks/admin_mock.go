@@ -28,14 +28,14 @@ var _ services.AdminService = (*AdminMock)(nil)
 // errNotConfigured.
 type AdminMock struct {
 	// Access keys
-	ListKeysFn   func(ctx context.Context) ([]models.ListKeysResponseItem, error)
+	ListKeysFn func(ctx context.Context) ([]models.ListKeysResponseItem, error)
 	// Unset, the batch lists answer like a Garage without them (ErrUnsupported).
 	ListKeysInfoFn    func(ctx context.Context) ([]models.GarageKeyInfo, error)
 	ListBucketsInfoFn func(ctx context.Context) ([]models.GarageBucketInfo, error)
-	CreateKeyFn  func(ctx context.Context, req models.CreateKeyRequest) (*models.GarageKeyInfo, error)
-	GetKeyInfoFn func(ctx context.Context, keyID string, showSecret bool) (*models.GarageKeyInfo, error)
-	UpdateKeyFn  func(ctx context.Context, keyID string, req models.UpdateKeyRequest) (*models.GarageKeyInfo, error)
-	DeleteKeyFn  func(ctx context.Context, keyID string) error
+	CreateKeyFn       func(ctx context.Context, req models.CreateKeyRequest) (*models.GarageKeyInfo, error)
+	GetKeyInfoFn      func(ctx context.Context, keyID string, showSecret bool) (*models.GarageKeyInfo, error)
+	UpdateKeyFn       func(ctx context.Context, keyID string, req models.UpdateKeyRequest) (*models.GarageKeyInfo, error)
+	DeleteKeyFn       func(ctx context.Context, keyID string) error
 
 	// Buckets
 	ListBucketsFn          func(ctx context.Context) ([]models.ListBucketsResponseItem, error)
@@ -44,6 +44,11 @@ type AdminMock struct {
 	CreateBucketFn         func(ctx context.Context, req models.CreateBucketAdminRequest) (*models.GarageBucketInfo, error)
 	UpdateBucketFn         func(ctx context.Context, bucketID string, req models.UpdateBucketRequest) (*models.GarageBucketInfo, error)
 	CleanupUploadsFn       func(ctx context.Context, bucketID string, olderThanSecs int64) (int64, error)
+	ListWorkersFn          func(ctx context.Context) (*models.MultiNodeResponse, error)
+	ListBlockErrorsFn      func(ctx context.Context) (*models.MultiNodeResponse, error)
+	GetBlockInfoFn         func(ctx context.Context, nodeID, blockHash string) (*models.MultiNodeResponse, error)
+	RetryBlockResyncFn     func(ctx context.Context, nodeID, blockHash string) (*models.MultiNodeResponse, error)
+	RetryAllBlockResyncFn  func(ctx context.Context) (*models.MultiNodeResponse, error)
 	DeleteBucketFn         func(ctx context.Context, bucketID string) error
 	AllowBucketKeyFn       func(ctx context.Context, req models.BucketKeyPermRequest) (*models.GarageBucketInfo, error)
 	DenyBucketKeyFn        func(ctx context.Context, req models.BucketKeyPermRequest) (*models.GarageBucketInfo, error)
@@ -186,6 +191,46 @@ func (m *AdminMock) CleanupIncompleteUploads(ctx context.Context, bucketID strin
 		return 0, errNotConfigured("CleanupIncompleteUploads")
 	}
 	return m.CleanupUploadsFn(ctx, bucketID, olderThanSecs)
+}
+
+func (m *AdminMock) ListWorkers(ctx context.Context) (*models.MultiNodeResponse, error) {
+	m.record("ListWorkers")
+	if m.ListWorkersFn == nil {
+		return nil, errNotConfigured("ListWorkers")
+	}
+	return m.ListWorkersFn(ctx)
+}
+
+func (m *AdminMock) ListBlockErrors(ctx context.Context) (*models.MultiNodeResponse, error) {
+	m.record("ListBlockErrors")
+	if m.ListBlockErrorsFn == nil {
+		return nil, errNotConfigured("ListBlockErrors")
+	}
+	return m.ListBlockErrorsFn(ctx)
+}
+
+func (m *AdminMock) GetBlockInfo(ctx context.Context, nodeID, blockHash string) (*models.MultiNodeResponse, error) {
+	m.record("GetBlockInfo", nodeID, blockHash)
+	if m.GetBlockInfoFn == nil {
+		return nil, errNotConfigured("GetBlockInfo")
+	}
+	return m.GetBlockInfoFn(ctx, nodeID, blockHash)
+}
+
+func (m *AdminMock) RetryBlockResync(ctx context.Context, nodeID, blockHash string) (*models.MultiNodeResponse, error) {
+	m.record("RetryBlockResync", nodeID, blockHash)
+	if m.RetryBlockResyncFn == nil {
+		return nil, errNotConfigured("RetryBlockResync")
+	}
+	return m.RetryBlockResyncFn(ctx, nodeID, blockHash)
+}
+
+func (m *AdminMock) RetryAllBlockResync(ctx context.Context) (*models.MultiNodeResponse, error) {
+	m.record("RetryAllBlockResync")
+	if m.RetryAllBlockResyncFn == nil {
+		return nil, errNotConfigured("RetryAllBlockResync")
+	}
+	return m.RetryAllBlockResyncFn(ctx)
 }
 
 func (m *AdminMock) DeleteBucket(ctx context.Context, bucketID string) error {

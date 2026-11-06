@@ -44,7 +44,7 @@ func (h *BucketHandler) ListBuckets(c fiber.Ctx) error {
 		if len(item.Bucket.GlobalAliases) == 0 {
 			continue
 		}
-		bucket := models.BucketInfo{Name: item.Bucket.GlobalAliases[0], CreationDate: item.Bucket.Created}
+		bucket := models.BucketInfo{ID: item.Bucket.ID, Name: item.Bucket.GlobalAliases[0], CreationDate: item.Bucket.Created}
 		if item.Info != nil {
 			bucket.ObjectCount = &item.Info.Objects
 			bucket.Size = &item.Info.Bytes

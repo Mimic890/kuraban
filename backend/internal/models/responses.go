@@ -43,6 +43,7 @@ type HealthResponse struct {
 
 // BucketInfo represents information about a bucket
 type BucketInfo struct {
+	ID            string               `json:"id"`
 	Name          string               `json:"name"`
 	CreationDate  time.Time            `json:"creationDate"`
 	ObjectCount   *int64               `json:"objectCount,omitempty"`
@@ -68,6 +69,13 @@ type CleanupUploadsRequest struct {
 // CleanupUploadsResponse reports how many uploads were aborted.
 type CleanupUploadsResponse struct {
 	UploadsDeleted int64 `json:"uploadsDeleted"`
+}
+
+// RetryBlockResyncRequest names one block on one node, or asks for all of them.
+type RetryBlockResyncRequest struct {
+	All       bool   `json:"all"`
+	NodeID    string `json:"nodeId"`
+	BlockHash string `json:"blockHash"`
 }
 
 // BucketListResponse represents a list of buckets

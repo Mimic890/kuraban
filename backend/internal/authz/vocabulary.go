@@ -34,6 +34,10 @@ const (
 	PermBucketUpdate      = "bucket.update"
 	PermBucketDelete      = "bucket.delete"
 	PermBucketCleanup     = "bucket.cleanup_uploads"
+	PermWorkerList        = "worker.list"
+	PermBlockListErrors   = "block.list_errors"
+	PermBlockInfo         = "block.info"
+	PermBlockRetryResync  = "block.retry_resync"
 	PermObjectList        = "object.list"
 	PermObjectRead        = "object.read"
 	PermObjectWrite       = "object.write"
@@ -106,8 +110,9 @@ var Vocabulary = map[string]PermSpec{
 	"worker.get_variable": {Scope: ScopeGlobal, Endpoints: []string{"GetWorkerVariable"}},
 	"worker.set_variable": {Scope: ScopeGlobal, Endpoints: []string{"SetWorkerVariable"}},
 
-	"block.list_errors": {Scope: ScopeGlobal, Endpoints: []string{"ListBlockErrors"}},
-	"block.info":        {Scope: ScopeGlobal, Endpoints: []string{"GetBlockInfo"}},
+	"block.list_errors":  {Scope: ScopeGlobal, Endpoints: []string{"ListBlockErrors"}},
+	"block.info":         {Scope: ScopeGlobal, Endpoints: []string{"GetBlockInfo"}},
+	"block.retry_resync": {Scope: ScopeGlobal, Endpoints: []string{"RetryBlockResync"}},
 }
 
 // IsValidPermission reports whether p names a concrete vocabulary entry.

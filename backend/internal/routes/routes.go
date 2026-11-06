@@ -298,6 +298,10 @@ func SetupRoutes(
 		cluster.Get("/statistics", az.Require(authz.ScopeNone, authz.PermClusterStatistics), clusterHandler.GetStatistics)                 // Get cluster statistics
 		cluster.Get("/nodes/:node_id", az.Require(authz.ScopeNone, authz.PermNodeInfo), clusterHandler.GetNodeInfo)                        // Get node info
 		cluster.Get("/nodes/:node_id/statistics", az.Require(authz.ScopeNone, authz.PermNodeStatistics), clusterHandler.GetNodeStatistics) // Get node statistics
+		cluster.Get("/nodes/:node_id/blocks/:hash", az.Require(authz.ScopeNone, authz.PermBlockInfo), clusterHandler.GetBlockInfo)         // Get what references a block
+		cluster.Get("/workers", az.Require(authz.ScopeNone, authz.PermWorkerList), clusterHandler.ListWorkers)                             // List background workers
+		cluster.Get("/block-errors", az.Require(authz.ScopeNone, authz.PermBlockListErrors), clusterHandler.ListBlockErrors)               // List block errors
+		cluster.Post("/block-errors/retry", az.Require(authz.ScopeNone, authz.PermBlockRetryResync), clusterHandler.RetryBlockResync)      // Retry block resync
 	}
 
 	// Monitoring routes

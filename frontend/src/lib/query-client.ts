@@ -35,6 +35,10 @@ export const queryKeys = {
     health: (clusterId?: string | null) => [...queryKeys.cluster.all, 'health', clusterId ?? 'none'] as const,
     status: (clusterId?: string | null) => [...queryKeys.cluster.all, 'status', clusterId ?? 'none'] as const,
     statistics: (clusterId?: string | null) => [...queryKeys.cluster.all, 'statistics', clusterId ?? 'none'] as const,
+    workers: (clusterId?: string | null) => [...queryKeys.cluster.all, 'workers', clusterId ?? 'none'] as const,
+    blockErrors: (clusterId?: string | null) => [...queryKeys.cluster.all, 'block-errors', clusterId ?? 'none'] as const,
+    block: (clusterId: string | null | undefined, nodeId: string, hash: string) =>
+      [...queryKeys.cluster.all, 'block', clusterId ?? 'none', nodeId, hash] as const,
   },
   dashboard: {
     all: ['dashboard'] as const,

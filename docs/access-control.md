@@ -157,8 +157,9 @@ Permission names are lowercase and dot-separated: two segments, or three for `cl
 | `worker.set_variable` | global | | SetWorkerVariable |
 | `block.list_errors` | global | | ListBlockErrors |
 | `block.info` | global | | GetBlockInfo |
+| `block.retry_resync` | global | | RetryBlockResync |
 
-Some permissions have no UI route yet: `bucket.inspect_object`, `bucket_alias.*`, `cluster.layout.*`, `worker.*`, `block.*`, `cluster.connect_nodes`, `node.snapshot`, `node.repair`, and `key.import`. They're valid in config but don't gate anything in the UI so far. The vocabulary is complete up front so your config keeps working as the UI grows.
+Some permissions have no UI route yet: `bucket.inspect_object`, `bucket_alias.*`, `cluster.layout.*`, `worker.info`, `worker.*_variable`, `cluster.connect_nodes`, `node.snapshot`, `node.repair`, and `key.import`. They're valid in config but don't gate anything in the UI so far. The vocabulary is complete up front so your config keeps working as the UI grows.
 
 Dangerous operations (`cluster.layout.apply`, `node.repair`, `worker.set_variable`) are separate, individually grantable permissions. They're never bundled into a read-only preset, so you can give a team cluster visibility without also giving it the power to break the cluster.
 

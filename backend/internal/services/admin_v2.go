@@ -6,8 +6,10 @@ import (
 	logpkg "Mimic890/kuraban/pkg/logger"
 	"context"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 )
 
@@ -375,6 +377,82 @@ func (s *GarageV2AdminService) GetNodeStatistics(ctx context.Context, nodeID str
 		return nil, err
 	}
 	return &result, nil
+}
+
+// nodeRequestTimeout bounds the wait for one node, so that a node which went down
+// moments ago, and is still reported as up, cannot use up the whole request.
+const nodeRequestTimeout = 10 * time.Second
+
+// askNode sends a request to one node. A cluster that has lost many blocks returns
+// long lists, hence the larger response limit.
+func (s *GarageV2AdminService) askNode(ctx context.Context, method, endpoint, nodeID string, body any) (*models.MultiNodeResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, nodeRequestTimeout)
+	defer cancel()
+	resp, err := s.http.doRequest(ctx, method, fmt.Sprintf("/v2/%s?node=%s", endpoint, url.QueryEscape(nodeID)), body)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	var result models.MultiNodeResponse
+	if err := decodeResponseLimit(resp, &result, maxListPageBytes); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// askEveryNode asks the nodes one at a time rather than with node=*, which waits for
+// minutes on a node that is down: a problem with one node must not hide the others.
+func (s *GarageV2AdminService) askEveryNode(ctx context.Context, method, endpoint string, body any) (*models.MultiNodeResponse, error) {
+	status, err := s.GetClusterStatus(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := &models.MultiNodeResponse{Success: map[string]any{}, Error: map[string]string{}}
+	var mu sync.Mutex
+	forEachLimited(len(status.Nodes), func(i int) {
+		node := status.Nodes[i]
+		if !node.IsUp {
+			mu.Lock()
+			defer mu.Unlock()
+			out.Error[node.ID] = "node is down"
+			return
+		}
+		result, err := s.askNode(ctx, method, endpoint, node.ID, body)
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			out.Error[node.ID] = err.Error()
+			return
+		}
+		maps.Copy(out.Success, result.Success)
+		maps.Copy(out.Error, result.Error)
+	})
+	return out, nil
+}
+
+// ListWorkers lists the background workers of every node. GetWorkerInfo would add
+// nothing: it returns the same fields for one worker.
+func (s *GarageV2AdminService) ListWorkers(ctx context.Context) (*models.MultiNodeResponse, error) {
+	return s.askEveryNode(ctx, http.MethodPost, "ListWorkers", map[string]any{})
+}
+
+// ListBlockErrors lists the blocks every node has failed to resync.
+func (s *GarageV2AdminService) ListBlockErrors(ctx context.Context) (*models.MultiNodeResponse, error) {
+	return s.askEveryNode(ctx, http.MethodGet, "ListBlockErrors", nil)
+}
+
+// GetBlockInfo returns what references a block, according to one node.
+func (s *GarageV2AdminService) GetBlockInfo(ctx context.Context, nodeID, blockHash string) (*models.MultiNodeResponse, error) {
+	return s.askNode(ctx, http.MethodPost, "GetBlockInfo", nodeID, map[string]string{"blockHash": blockHash})
+}
+
+// RetryBlockResync makes one node retry one block now instead of at its next attempt.
+func (s *GarageV2AdminService) RetryBlockResync(ctx context.Context, nodeID, blockHash string) (*models.MultiNodeResponse, error) {
+	return s.askNode(ctx, http.MethodPost, "RetryBlockResync", nodeID, map[string][]string{"blockHashes": {blockHash}})
+}
+
+// RetryAllBlockResync does the same for every errored block on every node.
+func (s *GarageV2AdminService) RetryAllBlockResync(ctx context.Context) (*models.MultiNodeResponse, error) {
+	return s.askEveryNode(ctx, http.MethodPost, "RetryBlockResync", map[string]bool{"all": true})
 }
 
 // HealthCheck checks if the Admin API is reachable

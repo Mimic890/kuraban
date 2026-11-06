@@ -5,6 +5,7 @@ export interface BucketQuotas {
 }
 
 export interface Bucket {
+  id?: string;
   name: string;
   creationDate: string;
   objectCount?: number;
@@ -234,8 +235,54 @@ export interface GarageCapabilities {
     nodeInfo: boolean;
     nodeStatistics: boolean;
     cleanupUploads: boolean;
+    workersAndBlocks: boolean;
   };
   access_control?: AccessControlInfo;
+}
+
+// Answers from every node, keyed by node ID, with the nodes that did not answer in error.
+export interface PerNode<T> {
+  success: Record<string, T>;
+  error: Record<string, string>;
+}
+
+export interface WorkerInfo {
+  id: number;
+  name: string;
+  state: 'busy' | 'idle' | 'done' | { throttled: { durationSecs: number } };
+  errors: number;
+  consecutiveErrors: number;
+  lastError?: { message: string; secsAgo: number } | null;
+  tranquility?: number | null;
+  progress?: string | null;
+  queueLength?: number | null;
+  persistentErrors?: number | null;
+  freeform: string[];
+}
+
+export interface BlockError {
+  blockHash: string;
+  refcount: number;
+  errorCount: number;
+  lastTrySecsAgo: number;
+  nextTryInSecs: number;
+}
+
+export interface BlockVersion {
+  versionId: string;
+  refDeleted: boolean;
+  versionDeleted: boolean;
+  garbageCollected: boolean;
+  backlink?:
+    | { object: { bucketId: string; key: string } }
+    | { upload: { uploadId: string; uploadDeleted: boolean; uploadGarbageCollected: boolean; bucketId?: string | null; key?: string | null } }
+    | null;
+}
+
+export interface BlockInfo {
+  blockHash: string;
+  refcount: number;
+  versions: BlockVersion[];
 }
 
 export interface NodeInfo {

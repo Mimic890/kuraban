@@ -230,6 +230,26 @@ func (s *GarageV1AdminService) CleanupIncompleteUploads(ctx context.Context, buc
 	return 0, ErrUnsupported
 }
 
+func (s *GarageV1AdminService) ListWorkers(ctx context.Context) (*models.MultiNodeResponse, error) {
+	return nil, ErrUnsupported
+}
+
+func (s *GarageV1AdminService) ListBlockErrors(ctx context.Context) (*models.MultiNodeResponse, error) {
+	return nil, ErrUnsupported
+}
+
+func (s *GarageV1AdminService) GetBlockInfo(ctx context.Context, nodeID, blockHash string) (*models.MultiNodeResponse, error) {
+	return nil, ErrUnsupported
+}
+
+func (s *GarageV1AdminService) RetryBlockResync(ctx context.Context, nodeID, blockHash string) (*models.MultiNodeResponse, error) {
+	return nil, ErrUnsupported
+}
+
+func (s *GarageV1AdminService) RetryAllBlockResync(ctx context.Context) (*models.MultiNodeResponse, error) {
+	return nil, ErrUnsupported
+}
+
 func (s *GarageV1AdminService) GetClusterStatistics(ctx context.Context) (*models.ClusterStatistics, error) {
 	return nil, ErrUnsupported
 }

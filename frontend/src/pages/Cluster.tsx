@@ -15,6 +15,10 @@ import { useTranslation } from '@/lib/i18n';
 import { queryKeys } from '@/lib/query-client';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Button } from '@/components/ui/button';
+import { BlockErrorsTab } from '@/components/cluster/BlockErrorsTab';
+import { useBlockErrors } from '@/components/cluster/helpers';
+import { WorkersTab } from '@/components/cluster/WorkersTab';
+import { usePermissions } from '@/hooks/usePermissions';
 
 function UnsupportedFeatureCard({ title, description }: { title: string; description?: string }) {
   const { t } = useTranslation();
@@ -44,6 +48,10 @@ export function Cluster() {
 
   const { data: capabilities } = useCapabilities();
   const features = capabilities?.features;
+  const { hasClusterPerm } = usePermissions();
+  const showWorkers = features?.workersAndBlocks && hasClusterPerm('worker.list');
+  const showBlockErrors = features?.workersAndBlocks && hasClusterPerm('block.list_errors');
+  const blockErrorCount = useBlockErrors(!!showBlockErrors).count;
 
   const { clusters, activeClusterId } = useClusterStore();
 
@@ -223,10 +231,19 @@ export function Cluster() {
 
         {/* Tabs for different views */}
         <Tabs defaultValue="nodes" className="space-y-4">
-          <TabsList>
+          <TabsList className="overflow-x-auto overflow-y-hidden">
             <TabsTrigger value="nodes">{t('cluster.nodes_tab')}</TabsTrigger>
             <TabsTrigger value="statistics">{t('cluster.statistics_tab')}</TabsTrigger>
             <TabsTrigger value="details">{t('cluster.details_tab')}</TabsTrigger>
+            {showWorkers && <TabsTrigger value="workers">{t('cluster.workers_tab')}</TabsTrigger>}
+            {showBlockErrors && (
+              <TabsTrigger value="block-errors">
+                {t('cluster.block_errors_tab')}
+                {blockErrorCount > 0 && (
+                  <Badge variant="danger" className="ml-2">{number.format(blockErrorCount)}</Badge>
+                )}
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {/* Nodes Tab */}
@@ -558,6 +575,18 @@ export function Cluster() {
               </Card>
             )}
           </TabsContent>
+
+          {showWorkers && (
+            <TabsContent value="workers" className="space-y-4">
+              <WorkersTab nodes={status?.nodes ?? []} />
+            </TabsContent>
+          )}
+
+          {showBlockErrors && (
+            <TabsContent value="block-errors" className="space-y-4">
+              <BlockErrorsTab nodes={status?.nodes ?? []} />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>

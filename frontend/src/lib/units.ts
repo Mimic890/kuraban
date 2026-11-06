@@ -102,6 +102,11 @@ export function formatDate(ts: number): string {
   return new Intl.DateTimeFormat(language, { timeZone: timezone, month: 'short', day: 'numeric' }).format(new Date(ts * 1000));
 }
 
+// Garage reports times as seconds from now: negative for the past.
+export function formatSecsFromNow(secs: number): string {
+  return formatRelative(new Date(Date.now() + secs * 1000));
+}
+
 export function formatRelative(date: Date | string | number | undefined): string {
   if (date === undefined) return '—';
   const d = typeof date === 'number' ? new Date(date * 1000) : new Date(date);

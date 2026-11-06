@@ -265,6 +265,29 @@ func TestCleanupUploads_RequiresItsPermission(t *testing.T) {
 // TestPreviewTokenGrantsObjectGET exercises the full production chain: group
 // cascade AuthMiddleware accepts the token, ResolveSubject finds no user,
 // and Require allows via the preview claims instead of a subject.
+func TestWorkerAndBlockRoutes_RequirePermissions(t *testing.T) {
+	f, token := newEnabledPolicyFixture(t)
+	hash := strings.Repeat("a", 64)
+	for _, tc := range []struct{ method, path string }{
+		{"GET", "/api/v1/cluster/workers"},
+		{"GET", "/api/v1/cluster/block-errors"},
+		{"GET", "/api/v1/cluster/nodes/" + hash + "/blocks/" + hash},
+		{"POST", "/api/v1/cluster/block-errors/retry"},
+	} {
+		req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(`{"all":true}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		resp, err := f.App.Test(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusForbidden {
+			t.Errorf("%s %s: status = %d, want 403", tc.method, tc.path, resp.StatusCode)
+		}
+	}
+}
+
 func TestPreviewTokenGrantsObjectGET(t *testing.T) {
 	f, _ := newEnabledPolicyFixture(t)
 
