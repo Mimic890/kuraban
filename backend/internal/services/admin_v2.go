@@ -27,6 +27,12 @@ func (s *GarageV2AdminService) ListKeys(ctx context.Context) ([]models.ListKeysR
 	return listAllPages(ctx, s.http, "ListKeys", func(k models.ListKeysResponseItem) string { return k.ID })
 }
 
+// ListKeysInfo returns all access keys with their details, without secrets.
+func (s *GarageV2AdminService) ListKeysInfo(ctx context.Context) ([]models.GarageKeyInfo, error) {
+	keys, err := listAllPages(ctx, s.http, "ListKeysInfo", func(k models.GarageKeyInfo) string { return k.AccessKeyID })
+	return keys, batchListError(err)
+}
+
 // CreateKey creates a new API access key
 func (s *GarageV2AdminService) CreateKey(ctx context.Context, req models.CreateKeyRequest) (*models.GarageKeyInfo, error) {
 	var result models.GarageKeyInfo
@@ -93,6 +99,12 @@ func (s *GarageV2AdminService) ListBuckets(ctx context.Context) ([]models.ListBu
 		Int("count", len(result)).
 		Msg("listed buckets")
 	return result, nil
+}
+
+// ListBucketsInfo returns all buckets with their details.
+func (s *GarageV2AdminService) ListBucketsInfo(ctx context.Context) ([]models.GarageBucketInfo, error) {
+	buckets, err := listAllPages(ctx, s.http, "ListBucketsInfo", func(b models.GarageBucketInfo) string { return b.ID })
+	return buckets, batchListError(err)
 }
 
 // GetBucketInfo returns detailed information about a bucket by ID.

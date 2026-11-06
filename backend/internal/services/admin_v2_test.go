@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -725,5 +726,73 @@ func TestListBuckets_WalksEveryPage(t *testing.T) {
 	}
 	if len(got) != n || requests != 2 {
 		t.Errorf("got %d buckets in %d requests, want %d in 2", len(got), requests, n)
+	}
+}
+
+func TestListInfo_RefusalsBecomeErrUnsupported(t *testing.T) {
+	cases := []struct {
+		name        string
+		status      int
+		body        string
+		unsupported bool
+	}{
+		{"old Garage", http.StatusBadRequest, `{"message":"Bad request: Unknown API endpoint: GET /v2/ListBucketsInfo"}`, true},
+		{"scoped token", http.StatusForbidden, `{"message":"Forbidden"}`, true},
+		{"other bad request", http.StatusBadRequest, `{"message":"Bad request: nope"}`, false},
+		{"server error", http.StatusInternalServerError, `{"message":"boom"}`, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			svc, _ := newAdminTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(c.status)
+				_, _ = w.Write([]byte(c.body))
+			}))
+			_, bucketsErr := svc.ListBucketsInfo(context.Background())
+			_, keysErr := svc.ListKeysInfo(context.Background())
+			for _, err := range []error{bucketsErr, keysErr} {
+				if err == nil {
+					t.Fatal("want an error")
+				}
+				if errors.Is(err, ErrUnsupported) != c.unsupported {
+					t.Errorf("err = %v, unsupported = %v", err, c.unsupported)
+				}
+			}
+		})
+	}
+}
+
+func TestListInfo_DecodesPages(t *testing.T) {
+	n := listPageSize + 1
+	svc, _ := newAdminTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		offset := r.URL.Query().Get("offset")
+		switch r.URL.Path {
+		case "/v2/ListBucketsInfo":
+			page := []models.GarageBucketInfo{}
+			for _, id := range sortedIDs(n) {
+				if id >= offset && len(page) < limit {
+					page = append(page, models.GarageBucketInfo{ID: id, Objects: 7})
+				}
+			}
+			_ = json.NewEncoder(w).Encode(page)
+		case "/v2/ListKeysInfo":
+			page := []models.GarageKeyInfo{}
+			for _, id := range sortedIDs(n) {
+				if id >= offset && len(page) < limit {
+					page = append(page, models.GarageKeyInfo{AccessKeyID: id, Name: "k"})
+				}
+			}
+			_ = json.NewEncoder(w).Encode(page)
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	buckets, err := svc.ListBucketsInfo(context.Background())
+	if err != nil || len(buckets) != n || buckets[n-1].Objects != 7 {
+		t.Errorf("buckets: %d, err %v", len(buckets), err)
+	}
+	keys, err := svc.ListKeysInfo(context.Background())
+	if err != nil || len(keys) != n || keys[n-1].Name != "k" {
+		t.Errorf("keys: %d, err %v", len(keys), err)
 	}
 }

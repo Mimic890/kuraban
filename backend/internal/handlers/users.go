@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"context"
+	"errors"
 	"time"
 
 	"Mimic890/kuraban/internal/models"
@@ -38,8 +40,12 @@ func NewUserHandler() *UserHandler {
 //	@Router			/api/v1/users [get]
 func (h *UserHandler) ListUsers(c fiber.Ctx) error {
 	ctx := c.Context()
+	admin := getAdminService(c)
 
-	keys, err := getAdminService(c).ListKeys(ctx)
+	keys, err := admin.ListKeysInfo(ctx)
+	if errors.Is(err, services.ErrUnsupported) {
+		keys, err = listKeysOneByOne(ctx, admin)
+	}
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(
 			models.ErrorResponse(models.ErrCodeInternalError, "Failed to list users: "+err.Error()),
@@ -48,17 +54,7 @@ func (h *UserHandler) ListUsers(c fiber.Ctx) error {
 
 	// Convert to UserInfo format
 	users := make([]models.UserInfo, 0, len(keys))
-	for _, key := range keys {
-		// Get full key info to retrieve bucket permissions
-		keyInfo, err := getAdminService(c).GetKeyInfo(ctx, key.ID, false)
-		if err != nil {
-			// If we can't get full info, skip this key or use basic info
-			continue
-		}
-
-		// Convert bucket permissions to frontend format
-		bucketPermissions := convertBucketPermissionsToBucketPermissions(keyInfo.Buckets)
-
+	for _, keyInfo := range keys {
 		// Determine status based on expiration
 		status := "active"
 		if keyInfo.Expired {
@@ -70,7 +66,7 @@ func (h *UserHandler) ListUsers(c fiber.Ctx) error {
 			Name:              keyInfo.Name,
 			CreatedAt:         keyInfo.Created,
 			Status:            status,
-			BucketPermissions: bucketPermissions,
+			BucketPermissions: convertBucketPermissionsToBucketPermissions(keyInfo.Buckets),
 			Expiration:        keyInfo.Expiration,
 			Expired:           keyInfo.Expired,
 		})
@@ -80,6 +76,30 @@ func (h *UserHandler) ListUsers(c fiber.Ctx) error {
 		Users: users,
 		Count: len(users),
 	}))
+}
+
+// listKeysOneByOne serves Garage without ListKeysInfo. A key whose details can't
+// be read is left out.
+func listKeysOneByOne(ctx context.Context, admin services.AdminService) ([]models.GarageKeyInfo, error) {
+	list, err := admin.ListKeys(ctx)
+	if err != nil {
+		return nil, err
+	}
+	details := make([]*models.GarageKeyInfo, len(list))
+	forEachLimited(len(list), func(i int) {
+		details[i], _ = admin.GetKeyInfo(ctx, list[i].ID, false)
+	})
+	// Past the deadline every remaining key fails, and a short list would look complete.
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	keys := make([]models.GarageKeyInfo, 0, len(list))
+	for _, keyInfo := range details {
+		if keyInfo != nil {
+			keys = append(keys, *keyInfo)
+		}
+	}
+	return keys, nil
 }
 
 // convertBucketPermissionsToBucketPermissions converts Garage bucket permissions to frontend BucketPermission format

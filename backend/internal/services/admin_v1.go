@@ -30,6 +30,10 @@ func (s *GarageV1AdminService) ListKeys(ctx context.Context) ([]models.ListKeysR
 	return result, nil
 }
 
+func (s *GarageV1AdminService) ListKeysInfo(ctx context.Context) ([]models.GarageKeyInfo, error) {
+	return nil, ErrUnsupported
+}
+
 func (s *GarageV1AdminService) CreateKey(ctx context.Context, req models.CreateKeyRequest) (*models.GarageKeyInfo, error) {
 	var result models.GarageKeyInfo
 	if err := s.http.request(ctx, http.MethodPost, "/v1/key?list", req, &result); err != nil {
@@ -83,6 +87,10 @@ func (s *GarageV1AdminService) ListBuckets(ctx context.Context) ([]models.ListBu
 	}
 	log.Debug().Float64("duration_ms", msSince(start)).Int("count", len(result)).Msg("listed buckets")
 	return result, nil
+}
+
+func (s *GarageV1AdminService) ListBucketsInfo(ctx context.Context) ([]models.GarageBucketInfo, error) {
+	return nil, ErrUnsupported
 }
 
 func (s *GarageV1AdminService) GetBucketInfo(ctx context.Context, bucketID string) (*models.GarageBucketInfo, error) {

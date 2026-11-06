@@ -15,6 +15,9 @@ import (
 type AdminService interface {
 	// Access keys
 	ListKeys(ctx context.Context) ([]models.ListKeysResponseItem, error)
+	// ListKeysInfo returns every key with its details and no secrets, in far fewer
+	// calls than one GetKeyInfo per key. ErrUnsupported means the caller must do that.
+	ListKeysInfo(ctx context.Context) ([]models.GarageKeyInfo, error)
 	CreateKey(ctx context.Context, req models.CreateKeyRequest) (*models.GarageKeyInfo, error)
 	GetKeyInfo(ctx context.Context, keyID string, showSecret bool) (*models.GarageKeyInfo, error)
 	UpdateKey(ctx context.Context, keyID string, req models.UpdateKeyRequest) (*models.GarageKeyInfo, error)
@@ -22,6 +25,8 @@ type AdminService interface {
 
 	// Buckets
 	ListBuckets(ctx context.Context) ([]models.ListBucketsResponseItem, error)
+	// ListBucketsInfo is ListKeysInfo's counterpart for buckets.
+	ListBucketsInfo(ctx context.Context) ([]models.GarageBucketInfo, error)
 	GetBucketInfo(ctx context.Context, bucketID string) (*models.GarageBucketInfo, error)
 	GetBucketInfoByAlias(ctx context.Context, globalAlias string) (*models.GarageBucketInfo, error)
 	CreateBucket(ctx context.Context, req models.CreateBucketAdminRequest) (*models.GarageBucketInfo, error)

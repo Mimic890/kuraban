@@ -621,3 +621,58 @@ func TestUpdateBucketQuotas_MalformedJSONReturns400(t *testing.T) {
 		t.Fatalf("status = %d, want 400", resp.StatusCode)
 	}
 }
+
+func TestListBuckets_UsesBatchWithoutPerBucketCalls(t *testing.T) {
+	app, admin := newBucketsTestApp(t)
+	created := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	admin.ListBucketsInfoFn = func(_ context.Context) ([]models.GarageBucketInfo, error) {
+		return []models.GarageBucketInfo{
+			{ID: "1", Created: created, GlobalAliases: []string{"alpha", "second-alias"}, Objects: 3, Bytes: 40, WebsiteAccess: true},
+			{ID: "2", Created: created, GlobalAliases: nil},
+			{ID: "3", Created: created, GlobalAliases: []string{"beta"}, Objects: 5, Bytes: 60},
+		}, nil
+	}
+	admin.GetBucketInfoByAliasFn = func(_ context.Context, alias string) (*models.GarageBucketInfo, error) {
+		t.Errorf("no per-bucket call expected, got %s", alias)
+		return nil, nil
+	}
+	resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/buckets", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var body struct {
+		Data models.BucketListResponse `json:"data"`
+	}
+	decodeJSON(t, resp.Body, &body)
+	got := body.Data.Buckets
+	if len(got) != 2 || got[0].Name != "alpha" || got[1].Name != "beta" {
+		t.Fatalf("buckets = %+v", got)
+	}
+	// Each row must keep its own stats, not the last row's.
+	if *got[0].ObjectCount != 3 || *got[0].Size != 40 || !got[0].WebsiteAccess || *got[1].ObjectCount != 5 {
+		t.Errorf("stats = %+v / %+v", got[0], got[1])
+	}
+	if !got[0].CreationDate.Equal(created) {
+		t.Errorf("created = %v", got[0].CreationDate)
+	}
+}
+
+func TestListBuckets_BatchFailureIsNotHiddenByFallback(t *testing.T) {
+	app, admin := newBucketsTestApp(t)
+	admin.ListBucketsInfoFn = func(_ context.Context) ([]models.GarageBucketInfo, error) {
+		return nil, errors.New("boom")
+	}
+	admin.ListBucketsFn = func(_ context.Context) ([]models.ListBucketsResponseItem, error) {
+		t.Error("a real failure must not fall back")
+		return nil, nil
+	}
+	resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/buckets", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Errorf("status = %d", resp.StatusCode)
+	}
+}

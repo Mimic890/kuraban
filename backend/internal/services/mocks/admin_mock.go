@@ -29,6 +29,9 @@ var _ services.AdminService = (*AdminMock)(nil)
 type AdminMock struct {
 	// Access keys
 	ListKeysFn   func(ctx context.Context) ([]models.ListKeysResponseItem, error)
+	// Unset, the batch lists answer like a Garage without them (ErrUnsupported).
+	ListKeysInfoFn    func(ctx context.Context) ([]models.GarageKeyInfo, error)
+	ListBucketsInfoFn func(ctx context.Context) ([]models.GarageBucketInfo, error)
 	CreateKeyFn  func(ctx context.Context, req models.CreateKeyRequest) (*models.GarageKeyInfo, error)
 	GetKeyInfoFn func(ctx context.Context, keyID string, showSecret bool) (*models.GarageKeyInfo, error)
 	UpdateKeyFn  func(ctx context.Context, keyID string, req models.UpdateKeyRequest) (*models.GarageKeyInfo, error)
@@ -86,6 +89,14 @@ func (m *AdminMock) ListKeys(ctx context.Context) ([]models.ListKeysResponseItem
 	return m.ListKeysFn(ctx)
 }
 
+func (m *AdminMock) ListKeysInfo(ctx context.Context) ([]models.GarageKeyInfo, error) {
+	m.record("ListKeysInfo")
+	if m.ListKeysInfoFn == nil {
+		return nil, services.ErrUnsupported
+	}
+	return m.ListKeysInfoFn(ctx)
+}
+
 func (m *AdminMock) CreateKey(ctx context.Context, req models.CreateKeyRequest) (*models.GarageKeyInfo, error) {
 	m.record("CreateKey", req)
 	if m.CreateKeyFn == nil {
@@ -126,6 +137,14 @@ func (m *AdminMock) ListBuckets(ctx context.Context) ([]models.ListBucketsRespon
 		return nil, errNotConfigured("ListBuckets")
 	}
 	return m.ListBucketsFn(ctx)
+}
+
+func (m *AdminMock) ListBucketsInfo(ctx context.Context) ([]models.GarageBucketInfo, error) {
+	m.record("ListBucketsInfo")
+	if m.ListBucketsInfoFn == nil {
+		return nil, services.ErrUnsupported
+	}
+	return m.ListBucketsInfoFn(ctx)
 }
 
 func (m *AdminMock) GetBucketInfo(ctx context.Context, bucketID string) (*models.GarageBucketInfo, error) {

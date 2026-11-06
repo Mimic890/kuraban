@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -364,5 +365,93 @@ func TestUpdateUser_AdminError500(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want 500", resp.StatusCode)
+	}
+}
+
+func TestListUsers_UsesBatchWithoutPerKeyCalls(t *testing.T) {
+	app, admin := newUsersTestApp(t)
+	admin.ListKeysInfoFn = func(_ context.Context) ([]models.GarageKeyInfo, error) {
+		return []models.GarageKeyInfo{
+			{AccessKeyID: "AK1", Name: "one", Buckets: []models.KeyBucketInfo{{ID: "b1", GlobalAliases: []string{"alpha"}, Permissions: models.BucketKeyPermission{Read: true}}}},
+			{AccessKeyID: "AK2", Name: "two", Expired: true},
+		}, nil
+	}
+	admin.GetKeyInfoFn = func(_ context.Context, id string, _ bool) (*models.GarageKeyInfo, error) {
+		t.Errorf("no per-key call expected, got %s", id)
+		return nil, nil
+	}
+	resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/users", nil))
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	defer resp.Body.Close()
+	var body struct {
+		Data models.UserListResponse `json:"data"`
+	}
+	decodeJSON(t, resp.Body, &body)
+	users := body.Data.Users
+	if len(users) != 2 || users[0].Name != "one" || users[0].Status != "active" || users[1].Status != "inactive" {
+		t.Fatalf("users = %+v", users)
+	}
+	if len(users[0].BucketPermissions) != 1 || !users[0].BucketPermissions[0].Read {
+		t.Errorf("permissions = %+v", users[0].BucketPermissions)
+	}
+}
+
+// Without a batch list, running out of time must fail the request: a list that
+// just stops early would look complete.
+func TestListOneByOne_DeadlineIsAnErrorNotAShortList(t *testing.T) {
+	admin := &mocks.AdminMock{}
+	ctx, cancel := context.WithCancel(context.Background())
+	admin.ListKeysFn = func(_ context.Context) ([]models.ListKeysResponseItem, error) {
+		return []models.ListKeysResponseItem{{ID: "AK1"}, {ID: "AK2"}}, nil
+	}
+	admin.ListBucketsFn = func(_ context.Context) ([]models.ListBucketsResponseItem, error) {
+		return []models.ListBucketsResponseItem{{ID: "1", GlobalAliases: []string{"alpha"}}}, nil
+	}
+	admin.GetKeyInfoFn = func(_ context.Context, id string, _ bool) (*models.GarageKeyInfo, error) {
+		cancel()
+		return nil, ctx.Err()
+	}
+	admin.GetBucketInfoByAliasFn = func(_ context.Context, _ string) (*models.GarageBucketInfo, error) {
+		return nil, ctx.Err()
+	}
+	if keys, err := listKeysOneByOne(ctx, admin); err == nil {
+		t.Errorf("keys: want an error, got %d keys", len(keys))
+	}
+	if buckets, err := listBucketsOneByOne(ctx, admin); err == nil {
+		t.Errorf("buckets: want an error, got %d buckets", len(buckets))
+	}
+}
+
+func TestListOneByOne_KeepsOrderAndToleratesMissingDetails(t *testing.T) {
+	admin := &mocks.AdminMock{}
+	admin.ListBucketsFn = func(_ context.Context) ([]models.ListBucketsResponseItem, error) {
+		list := make([]models.ListBucketsResponseItem, 50)
+		for i := range list {
+			list[i] = models.ListBucketsResponseItem{ID: strconv.Itoa(i), GlobalAliases: []string{"b" + strconv.Itoa(i)}}
+		}
+		return list, nil
+	}
+	admin.GetBucketInfoByAliasFn = func(_ context.Context, alias string) (*models.GarageBucketInfo, error) {
+		switch alias {
+		case "b3":
+			return nil, errors.New("forbidden")
+		case "b4":
+			return nil, nil // deleted while listing
+		}
+		return &models.GarageBucketInfo{Objects: 1}, nil
+	}
+	buckets, err := listBucketsOneByOne(context.Background(), admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, b := range buckets {
+		if b.Name != "b"+strconv.Itoa(i) {
+			t.Fatalf("bucket %d = %s", i, b.Name)
+		}
+		if withStats := i != 3 && i != 4; withStats != (b.ObjectCount != nil) {
+			t.Errorf("bucket %d stats = %v", i, b.ObjectCount)
+		}
 	}
 }

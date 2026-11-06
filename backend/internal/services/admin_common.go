@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/Noooste/azuretls-client"
@@ -103,6 +104,16 @@ func decodeResponseLimit(resp *azuretls.Response, target interface{}, maxBytes i
 	return nil
 }
 
+// batchListError turns the two ways Garage refuses a batch list into
+// ErrUnsupported: older versions answer the unknown endpoint with 400, and an
+// admin token scoped to the per-item endpoints gets 403.
+func batchListError(err error) error {
+	if err != nil && (strings.Contains(err.Error(), "Unknown API endpoint") || strings.Contains(err.Error(), "API returned status 403")) {
+		return fmt.Errorf("%w: %v", ErrUnsupported, err)
+	}
+	return err
+}
+
 // listPageSize is how many items one Garage list request asks for.
 const listPageSize = 500
 
@@ -156,10 +167,9 @@ const bucketInfoCacheTTL = 5 * time.Second
 
 // cachedBucketInfo returns a bucket's details, fetching through fetch on a
 // cache miss and serving the freshly-resolved value for the next
-// bucketInfoCacheTTL. The Garage Admin API exposes no batch operation that
-// returns every bucket's details in one call, so handlers that walk all
-// buckets (ListBuckets, dashboard metrics) would otherwise issue one Admin API
-// request per bucket on every refresh. Cache keys are scoped to the cluster's
+// bucketInfoCacheTTL. Handlers that walk all buckets one by one (dashboard
+// metrics, ListBuckets on Garage without ListBucketsInfo) would otherwise issue
+// one Admin API request per bucket on every refresh. Cache keys are scoped to the cluster's
 // admin endpoint so multiple connected clusters, and the same alias/id across
 // clusters, never collide.
 //
