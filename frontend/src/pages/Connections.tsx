@@ -2,7 +2,7 @@ import * as React from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { CheckCircle2, Loader2, Pencil, Plug, Plus, RefreshCw, Server, ShieldPlus, Trash2, XCircle } from 'lucide-react';
+import { CheckCircle2, LayoutGrid, Loader2, Pencil, Plug, Plus, RefreshCw, Server, ShieldPlus, Table2, Trash2, XCircle } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -12,7 +12,10 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Segmented } from '@/components/ui/segmented';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useClusterStore, type ClusterConfig } from '@/store/cluster-store';
+import { useSettingsStore } from '@/store/settings-store';
 import { useTranslation } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { clusterApi, describeApiError, normalizeDraft, type BlockedEndpoint, type ClusterDraft, type ConnectionCheck } from '@/lib/clusters';
@@ -323,7 +326,7 @@ function ClusterStatus({ cluster }: { cluster: ClusterConfig }) {
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2">
-        <Badge variant={ok ? 'success' : 'danger'}>{ok ? t('connections.status.online', { version: q.data?.api_version ?? '' }) : t('connections.status.offline')}</Badge>
+        <Badge variant={ok ? 'success' : 'danger'} className="whitespace-nowrap">{ok ? t('connections.status.online', { version: q.data?.api_version ?? '' }) : t('connections.status.offline')}</Badge>
         <button type="button" onClick={() => q.refetch()} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]" aria-label={t('connections.test')} title={t('connections.test')}>
           <RefreshCw className={cn('h-3.5 w-3.5', q.isFetching && 'animate-spin')} />
         </button>
@@ -333,8 +336,29 @@ function ClusterStatus({ cluster }: { cluster: ClusterConfig }) {
   );
 }
 
+function ClusterActions({ cluster, onEdit, onRemove }: { cluster: ClusterConfig; onEdit: () => void; onRemove: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <>
+      <Button variant="ghost" size="icon" aria-label={t('connections.editAriaLabel', { name: cluster.name })} title={t('connections.edit')} onClick={onEdit}>
+        <Pencil className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label={t('connections.removeAriaLabel', { name: cluster.name })}
+        className="text-[var(--destructive)] hover:bg-[var(--danger-soft)]"
+        onClick={onRemove}
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </>
+  );
+}
+
 export function Connections() {
   const { clusters, activeClusterId, setActiveCluster, deleteCluster } = useClusterStore();
+  const { connectionsView, setConnectionsView } = useSettingsStore();
   const { t } = useTranslation();
   const location = useLocation();
   const [adding, setAdding] = React.useState(false);
@@ -366,12 +390,84 @@ export function Connections() {
       <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold tracking-tight">{t('connections.connected')}</h2>
-          <Button onClick={() => setAdding(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            {t('connections.add')}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {clusters.length > 0 && (
+              <Segmented
+                value={connectionsView}
+                onChange={setConnectionsView}
+                options={[
+                  { value: 'grid', label: <LayoutGrid className="h-3.5 w-3.5" />, title: t('connections.view.grid') },
+                  { value: 'table', label: <Table2 className="h-3.5 w-3.5" />, title: t('connections.view.table') },
+                ]}
+              />
+            )}
+            <Button onClick={() => setAdding(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              {t('connections.add')}
+            </Button>
+          </div>
         </div>
 
+        {clusters.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-[var(--border)] py-12 text-center text-[var(--muted-foreground)]">
+            <Server className="mx-auto mb-3 h-12 w-12 opacity-20" />
+            <p>{t('connections.no_clusters')}</p>
+            <Button variant="link" onClick={() => setAdding(true)}>
+              {t('connections.add_first')}
+            </Button>
+          </div>
+        ) : connectionsView === 'table' ? (
+          <div className="rounded-lg border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('connections.name')}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{t('connections.status_column')}</TableHead>
+                  <TableHead className="hidden lg:table-cell">{t('connections.s3_url')}</TableHead>
+                  <TableHead className="hidden xl:table-cell">{t('connections.admin_api')}</TableHead>
+                  <TableHead className="hidden xl:table-cell">{t('connections.region')}</TableHead>
+                  <TableHead className="text-right">{t('connections.actions_column')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {clusters.map((cluster) => (
+                  <TableRow key={cluster.id}>
+                    <TableCell className="max-w-[10rem] sm:max-w-[16rem]">
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <span className="truncate font-medium">{cluster.name}</span>
+                        {activeClusterId === cluster.id && (
+                          <Badge variant="warning" className="gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> {t('connections.active')}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="truncate font-mono text-[0.6875rem] text-[var(--muted-foreground)]">{cluster.id}</div>
+                      <div className="mt-1.5 sm:hidden">
+                        <ClusterStatus cluster={cluster} />
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden max-w-[16rem] sm:table-cell">
+                      <ClusterStatus cluster={cluster} />
+                    </TableCell>
+                    <TableCell className="hidden max-w-[14rem] truncate lg:table-cell">{s3Url(cluster)}</TableCell>
+                    <TableCell className="hidden max-w-[14rem] truncate xl:table-cell">{cluster.admin_endpoint}</TableCell>
+                    <TableCell className="hidden xl:table-cell">{cluster.region}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-end gap-1">
+                        {activeClusterId !== cluster.id && (
+                          <Button variant="secondary" size="icon" aria-label={t('connections.switch')} title={t('connections.switch')} onClick={() => setActiveCluster(cluster.id)}>
+                            <Plug className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <ClusterActions cluster={cluster} onEdit={() => setEditing(cluster)} onRemove={() => setRemoving(cluster)} />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {clusters.map((cluster) => (
             <Card key={cluster.id} className={activeClusterId === cluster.id ? 'ring-2 ring-[var(--primary)]' : ''}>
@@ -389,18 +485,7 @@ export function Connections() {
                   <CardDescription className="truncate font-mono text-[0.6875rem]">{cluster.id}</CardDescription>
                 </div>
                 <div className="-mr-2 flex shrink-0">
-                  <Button variant="ghost" size="icon" aria-label={t('connections.editAriaLabel', { name: cluster.name })} title={t('connections.edit')} onClick={() => setEditing(cluster)}>
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={t('connections.removeAriaLabel', { name: cluster.name })}
-                    className="text-[var(--destructive)] hover:bg-[var(--danger-soft)]"
-                    onClick={() => setRemoving(cluster)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <ClusterActions cluster={cluster} onEdit={() => setEditing(cluster)} onRemove={() => setRemoving(cluster)} />
                 </div>
               </CardHeader>
               <CardContent className="space-y-3 pt-3">
@@ -421,16 +506,8 @@ export function Connections() {
               </CardContent>
             </Card>
           ))}
-          {clusters.length === 0 && (
-            <div className="col-span-full rounded-xl border border-dashed border-[var(--border)] py-12 text-center text-[var(--muted-foreground)]">
-              <Server className="mx-auto mb-3 h-12 w-12 opacity-20" />
-              <p>{t('connections.no_clusters')}</p>
-              <Button variant="link" onClick={() => setAdding(true)}>
-                {t('connections.add_first')}
-              </Button>
-            </div>
-          )}
         </div>
+        )}
       </div>
 
       {adding && <ClusterForm onClose={() => setAdding(false)} />}

@@ -4,6 +4,7 @@ import { persist } from 'zustand/middleware';
 export type Language = 'en' | 'ru';
 export type FontSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 export type Density = 'compact' | 'comfortable';
+export type ConnectionsView = 'grid' | 'table';
 
 export const FONT_SIZE_PX: Record<FontSize, number> = { xs: 13, sm: 14, md: 15, lg: 16, xl: 17 };
 
@@ -20,6 +21,7 @@ interface SettingsStore {
   dashboardRange: string;
   dashboardRefresh: string;
   collapsedRows: string[];
+  connectionsView: ConnectionsView;
   setTimezone: (timezone: string) => void;
   setLanguage: (language: Language) => void;
   setFontSans: (id: string) => void;
@@ -32,6 +34,7 @@ interface SettingsStore {
   setDashboardRange: (value: string) => void;
   setDashboardRefresh: (value: string) => void;
   toggleRow: (id: string) => void;
+  setConnectionsView: (value: ConnectionsView) => void;
   resetAppearance: () => void;
 }
 
@@ -54,6 +57,7 @@ export const useSettingsStore = create<SettingsStore>()(
       dashboardRange: '1h',
       dashboardRefresh: 'auto',
       collapsedRows: [],
+      connectionsView: 'grid',
       setTimezone: (timezone) => set({ timezone }),
       setLanguage: (language) => set({ language }),
       setFontSans: (fontSans) => set({ fontSans }),
@@ -71,6 +75,7 @@ export const useSettingsStore = create<SettingsStore>()(
             ? state.collapsedRows.filter((r) => r !== id)
             : [...state.collapsedRows, id],
         })),
+      setConnectionsView: (connectionsView) => set({ connectionsView }),
       resetAppearance: () => set({ ...APPEARANCE_DEFAULTS }),
     }),
     {
