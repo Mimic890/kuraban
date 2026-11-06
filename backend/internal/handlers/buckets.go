@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"strconv"
 	"strings"
 
 	"Mimic890/kuraban/internal/authz"
@@ -80,20 +81,31 @@ func (h *BucketHandler) ListBuckets(c fiber.Ctx) error {
 	return c.JSON(models.SuccessResponse(response))
 }
 
-// garageRefusal returns Garage's own explanation when it answered 400, such as an
-// invalid name or an alias taken by another bucket.
-func garageRefusal(err error) (string, bool) {
-	_, body, found := strings.Cut(err.Error(), "API returned status 400: ")
+// garageMessage returns the status and Garage's own explanation from a failed admin call.
+func garageMessage(err error) (int, string, bool) {
+	_, rest, found := strings.Cut(err.Error(), "API returned status ")
 	if !found {
-		return "", false
+		return 0, "", false
+	}
+	code, body, found := strings.Cut(rest, ": ")
+	status, convErr := strconv.Atoi(code)
+	if !found || convErr != nil {
+		return 0, "", false
 	}
 	var refusal struct {
 		Message string `json:"message"`
 	}
 	if json.Unmarshal([]byte(body), &refusal) != nil || refusal.Message == "" {
-		return "", false
+		return 0, "", false
 	}
-	return refusal.Message, true
+	return status, refusal.Message, true
+}
+
+// garageRefusal returns Garage's own explanation when it answered 400, such as an
+// invalid name or an alias taken by another bucket.
+func garageRefusal(err error) (string, bool) {
+	status, message, ok := garageMessage(err)
+	return message, ok && status == fiber.StatusBadRequest
 }
 
 func bucketAliasResult(c fiber.Ctx, info *models.GarageBucketInfo, err error) error {

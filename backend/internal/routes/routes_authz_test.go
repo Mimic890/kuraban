@@ -298,6 +298,13 @@ func TestWorkerAndBlockRoutes_RequirePermissions(t *testing.T) {
 		{"GET", "/api/v1/cluster/block-errors"},
 		{"GET", "/api/v1/cluster/nodes/" + hash + "/blocks/" + hash},
 		{"POST", "/api/v1/cluster/block-errors/retry"},
+		{"GET", "/api/v1/cluster/layout"},
+		{"GET", "/api/v1/cluster/layout/history"},
+		{"POST", "/api/v1/cluster/layout/update"},
+		{"POST", "/api/v1/cluster/layout/preview"},
+		{"POST", "/api/v1/cluster/layout/apply"},
+		{"POST", "/api/v1/cluster/layout/revert"},
+		{"POST", "/api/v1/cluster/layout/skip-dead-nodes"},
 	} {
 		req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(`{"all":true}`))
 		req.Header.Set("Content-Type", "application/json")

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"time"
 
@@ -39,6 +40,13 @@ type AdminService interface {
 	GetBlockInfo(ctx context.Context, nodeID, blockHash string) (*models.MultiNodeResponse, error)
 	RetryBlockResync(ctx context.Context, nodeID, blockHash string) (*models.MultiNodeResponse, error)
 	RetryAllBlockResync(ctx context.Context) (*models.MultiNodeResponse, error)
+	GetClusterLayout(ctx context.Context) (json.RawMessage, error)
+	GetClusterLayoutHistory(ctx context.Context) (json.RawMessage, error)
+	UpdateClusterLayout(ctx context.Context, req models.UpdateClusterLayoutRequest) (json.RawMessage, error)
+	PreviewClusterLayoutChanges(ctx context.Context) (json.RawMessage, error)
+	ApplyClusterLayout(ctx context.Context, version uint64) (json.RawMessage, error)
+	RevertClusterLayout(ctx context.Context) (json.RawMessage, error)
+	ClusterLayoutSkipDeadNodes(ctx context.Context, req models.SkipDeadNodesRequest) (json.RawMessage, error)
 	DeleteBucket(ctx context.Context, bucketID string) error
 	AllowBucketKey(ctx context.Context, req models.BucketKeyPermRequest) (*models.GarageBucketInfo, error)
 	DenyBucketKey(ctx context.Context, req models.BucketKeyPermRequest) (*models.GarageBucketInfo, error)

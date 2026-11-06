@@ -22,6 +22,7 @@ type Capabilities struct {
 	CleanupUploads    bool `json:"cleanupUploads"`
 	WorkersAndBlocks  bool `json:"workersAndBlocks"`
 	BucketAliases     bool `json:"bucketAliases"`
+	ClusterLayout     bool `json:"clusterLayout"`
 }
 
 func CapabilitiesV2() Capabilities {
@@ -32,6 +33,7 @@ func CapabilitiesV2() Capabilities {
 		CleanupUploads:    true,
 		WorkersAndBlocks:  true,
 		BucketAliases:     true,
+		ClusterLayout:     true,
 	}
 }
 

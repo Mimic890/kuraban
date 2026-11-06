@@ -106,6 +106,13 @@ All API routes under `/api/v1` require auth (JWT bearer token or OIDC cookie). `
 | GET | `/api/v1/cluster/workers` | `cluster.ListWorkers` | Background workers, per node (v2 only) |
 | GET | `/api/v1/cluster/block-errors` | `cluster.ListBlockErrors` | Blocks that failed to resync, per node (v2 only) |
 | POST | `/api/v1/cluster/block-errors/retry` | `cluster.RetryBlockResync` | Retry one block or all (v2 only) |
+| GET | `/api/v1/cluster/layout` | `cluster.GetLayout` | Current layout and staged changes (v2 only) |
+| GET | `/api/v1/cluster/layout/history` | `cluster.GetLayoutHistory` | Layout versions and migration progress (v2 only) |
+| POST | `/api/v1/cluster/layout/update` | `cluster.UpdateLayout` | Stage role and parameter changes (v2 only) |
+| POST | `/api/v1/cluster/layout/preview` | `cluster.PreviewLayout` | Compute the next layout without applying it (v2 only) |
+| POST | `/api/v1/cluster/layout/apply` | `cluster.ApplyLayout` | Apply staged changes, which moves data (v2 only) |
+| POST | `/api/v1/cluster/layout/revert` | `cluster.RevertLayout` | Discard staged changes (v2 only) |
+| POST | `/api/v1/cluster/layout/skip-dead-nodes` | `cluster.SkipDeadNodes` | Finish a migration without dead nodes (v2 only) |
 | GET | `/api/v1/monitoring/dashboard` | `monitoring.GetDashboardMetrics` | Aggregated dashboard metrics |
 | GET/PUT | `/api/v1/settings` | `settings.GetSettings` / `UpdateSettings` | Runtime settings (PUT: cluster admin) |
 | GET | `/api/v1/telemetry/status` | `telemetry.Status` | Collector + database status for X-Cluster-Id |

@@ -36,6 +36,7 @@ func TestVocabularyContainsRatifiedPermissions(t *testing.T) {
 		{"key.update", ScopeGlobal, true},
 		{"key.delete", ScopeGlobal, true},
 		{"cluster.status", ScopeGlobal, false},
+		{"cluster.layout.update", ScopeGlobal, false},
 		{"cluster.layout.apply", ScopeGlobal, false},
 		{"node.repair", ScopeGlobal, false},
 		{"worker.set_variable", ScopeGlobal, false},
@@ -58,8 +59,8 @@ func TestVocabularyContainsRatifiedPermissions(t *testing.T) {
 	if _, ok := Vocabulary["admin_token.list"]; ok {
 		t.Error("admin_token.* must not be in the v1 vocabulary")
 	}
-	if len(Vocabulary) != 42 {
-		t.Errorf("vocabulary size = %d, want 42", len(Vocabulary))
+	if len(Vocabulary) != 43 {
+		t.Errorf("vocabulary size = %d, want 43", len(Vocabulary))
 	}
 }
 

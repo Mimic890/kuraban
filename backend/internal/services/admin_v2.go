@@ -5,6 +5,7 @@ import (
 	"Mimic890/kuraban/internal/state"
 	logpkg "Mimic890/kuraban/pkg/logger"
 	"context"
+	"encoding/json"
 	"fmt"
 	"maps"
 	"net/http"
@@ -482,6 +483,52 @@ func (s *GarageV2AdminService) RetryBlockResync(ctx context.Context, nodeID, blo
 // RetryAllBlockResync does the same for every errored block on every node.
 func (s *GarageV2AdminService) RetryAllBlockResync(ctx context.Context) (*models.MultiNodeResponse, error) {
 	return s.askEveryNode(ctx, http.MethodPost, "RetryBlockResync", map[string]bool{"all": true})
+}
+
+// layoutCall passes a layout response through untouched: nothing in the backend reads it.
+func (s *GarageV2AdminService) layoutCall(ctx context.Context, method, endpoint string, body any) (json.RawMessage, error) {
+	var result json.RawMessage
+	if err := s.http.request(ctx, method, "/v2/"+endpoint, body, &result); err != nil {
+		return nil, fmt.Errorf("%s: %w", endpoint, err)
+	}
+	return result, nil
+}
+
+// GetClusterLayout returns the current layout and the changes staged for the next one.
+func (s *GarageV2AdminService) GetClusterLayout(ctx context.Context) (json.RawMessage, error) {
+	return s.layoutCall(ctx, http.MethodGet, "GetClusterLayout", nil)
+}
+
+// GetClusterLayoutHistory lists layout versions and, during a migration, each node's progress.
+func (s *GarageV2AdminService) GetClusterLayoutHistory(ctx context.Context) (json.RawMessage, error) {
+	return s.layoutCall(ctx, http.MethodGet, "GetClusterLayoutHistory", nil)
+}
+
+// UpdateClusterLayout stages changes. No data moves until ApplyClusterLayout.
+func (s *GarageV2AdminService) UpdateClusterLayout(ctx context.Context, req models.UpdateClusterLayoutRequest) (json.RawMessage, error) {
+	return s.layoutCall(ctx, http.MethodPost, "UpdateClusterLayout", req)
+}
+
+// PreviewClusterLayoutChanges computes the next layout without applying it. A layout that
+// cannot be computed is a 200 response with an error field, not an API error.
+func (s *GarageV2AdminService) PreviewClusterLayoutChanges(ctx context.Context) (json.RawMessage, error) {
+	return s.layoutCall(ctx, http.MethodPost, "PreviewClusterLayoutChanges", nil)
+}
+
+// ApplyClusterLayout makes the staged changes the new layout and starts moving data.
+// Garage refuses any version other than the current one plus one.
+func (s *GarageV2AdminService) ApplyClusterLayout(ctx context.Context, version uint64) (json.RawMessage, error) {
+	return s.layoutCall(ctx, http.MethodPost, "ApplyClusterLayout", map[string]uint64{"version": version})
+}
+
+// RevertClusterLayout discards the staged changes.
+func (s *GarageV2AdminService) RevertClusterLayout(ctx context.Context) (json.RawMessage, error) {
+	return s.layoutCall(ctx, http.MethodPost, "RevertClusterLayout", nil)
+}
+
+// ClusterLayoutSkipDeadNodes lets a migration finish without the nodes that are down.
+func (s *GarageV2AdminService) ClusterLayoutSkipDeadNodes(ctx context.Context, req models.SkipDeadNodesRequest) (json.RawMessage, error) {
+	return s.layoutCall(ctx, http.MethodPost, "ClusterLayoutSkipDeadNodes", req)
 }
 
 // HealthCheck checks if the Admin API is reachable

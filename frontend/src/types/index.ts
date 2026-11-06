@@ -239,6 +239,7 @@ export interface GarageCapabilities {
     cleanupUploads: boolean;
     workersAndBlocks: boolean;
     bucketAliases: boolean;
+    clusterLayout: boolean;
   };
   access_control?: AccessControlInfo;
 }
@@ -315,4 +316,51 @@ export interface GarageMetrics extends StorageMetrics {
   clusterStatistics?: ClusterStatistics;
   nodeInfo?: NodeInfo;
   requestTypeMetrics?: RequestTypeMetrics;
+}
+
+export interface LayoutParameters {
+  zoneRedundancy: 'maximum' | { atLeast: number };
+}
+
+export interface LayoutNodeRole {
+  id: string;
+  zone: string;
+  tags: string[];
+  // Absent on a gateway, which stores no data.
+  capacity: number | null;
+  storedPartitions: number | null;
+  usableCapacity: number | null;
+}
+
+export type LayoutRoleChange =
+  | { id: string; remove: true }
+  | { id: string; remove?: undefined; zone: string; tags: string[]; capacity: number | null };
+
+export interface ClusterLayout {
+  version: number;
+  roles: LayoutNodeRole[];
+  parameters: LayoutParameters;
+  partitionSize: number;
+  stagedRoleChanges: LayoutRoleChange[];
+  stagedParameters: LayoutParameters | null;
+}
+
+// Garage before 2.5 sends no statistics.
+export interface LayoutStatistics {
+  effectiveCapacity: number;
+  lowPartitionSize: boolean;
+  lowUsableCapacity: boolean;
+  totalMovedPartitions: number | null;
+}
+
+export type LayoutPreview =
+  | { error: string }
+  | { message: string[]; statistics?: LayoutStatistics; newLayout: ClusterLayout };
+
+export interface LayoutHistory {
+  currentVersion: number;
+  minAck: number;
+  versions: { version: number; status: 'Current' | 'Draining' | 'Historical'; storageNodes: number; gatewayNodes: number }[];
+  // Present only while several layout versions are live, which means data is moving.
+  updateTrackers: Record<string, { ack: number; sync: number; syncAck: number }> | null;
 }

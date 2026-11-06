@@ -5,6 +5,7 @@ import (
 	"Mimic890/kuraban/internal/state"
 	logpkg "Mimic890/kuraban/pkg/logger"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -239,6 +240,34 @@ func (s *GarageV1AdminService) CleanupIncompleteUploads(ctx context.Context, buc
 }
 
 func (s *GarageV1AdminService) ListWorkers(ctx context.Context) (*models.MultiNodeResponse, error) {
+	return nil, ErrUnsupported
+}
+
+func (s *GarageV1AdminService) GetClusterLayout(ctx context.Context) (json.RawMessage, error) {
+	return nil, ErrUnsupported
+}
+
+func (s *GarageV1AdminService) GetClusterLayoutHistory(ctx context.Context) (json.RawMessage, error) {
+	return nil, ErrUnsupported
+}
+
+func (s *GarageV1AdminService) UpdateClusterLayout(ctx context.Context, req models.UpdateClusterLayoutRequest) (json.RawMessage, error) {
+	return nil, ErrUnsupported
+}
+
+func (s *GarageV1AdminService) PreviewClusterLayoutChanges(ctx context.Context) (json.RawMessage, error) {
+	return nil, ErrUnsupported
+}
+
+func (s *GarageV1AdminService) ApplyClusterLayout(ctx context.Context, version uint64) (json.RawMessage, error) {
+	return nil, ErrUnsupported
+}
+
+func (s *GarageV1AdminService) RevertClusterLayout(ctx context.Context) (json.RawMessage, error) {
+	return nil, ErrUnsupported
+}
+
+func (s *GarageV1AdminService) ClusterLayoutSkipDeadNodes(ctx context.Context, req models.SkipDeadNodesRequest) (json.RawMessage, error) {
 	return nil, ErrUnsupported
 }
 

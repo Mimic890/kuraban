@@ -31,6 +31,11 @@ func newClusterTestApp(t *testing.T) (*fiber.App, *mocks.AdminMock) {
 	app.Get("/cluster/workers", h.ListWorkers)
 	app.Get("/cluster/block-errors", h.ListBlockErrors)
 	app.Post("/cluster/block-errors/retry", h.RetryBlockResync)
+	app.Get("/cluster/layout", h.GetLayout)
+	app.Post("/cluster/layout/update", h.UpdateLayout)
+	app.Post("/cluster/layout/preview", h.PreviewLayout)
+	app.Post("/cluster/layout/apply", h.ApplyLayout)
+	app.Post("/cluster/layout/skip-dead-nodes", h.SkipDeadNodes)
 	// Extra routes without a node_id param so we can exercise the empty-id gate.
 	// Fiber requires a bound param value, so we mount a path with an empty
 	// trailing segment explicitly via Locals.
@@ -318,5 +323,115 @@ func TestCluster_MultiNodeLists_MapErrors(t *testing.T) {
 				t.Errorf("%s with %v: status = %d, want %d", path, tc.err, resp.StatusCode, tc.want)
 			}
 		}
+	}
+}
+
+func postLayout(t *testing.T, app *fiber.App, path, body string) *http.Response {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/cluster/layout/"+path, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp
+}
+
+func TestCluster_UpdateLayout_NormalizesChanges(t *testing.T) {
+	app, admin := newClusterTestApp(t)
+	var got models.UpdateClusterLayoutRequest
+	admin.UpdateClusterLayoutFn = func(_ context.Context, req models.UpdateClusterLayoutRequest) (json.RawMessage, error) {
+		got = req
+		return json.RawMessage(`{}`), nil
+	}
+	body := `{"roles":[{"id":"` + testNodeID + `","zone":" dc1 ","capacity":1024},{"id":"` + testHash + `","remove":true,"zone":"ignored"}]}`
+	if resp := postLayout(t, app, "update", body); resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	first, second := got.Roles[0], got.Roles[1]
+	if first.Zone != "dc1" || first.Tags == nil || *first.Capacity != 1024 {
+		t.Errorf("assignment = %+v", first)
+	}
+	if !second.Remove || second.Zone != "" {
+		t.Errorf("removal = %+v", second)
+	}
+}
+
+// A short id could name the wrong node, and Garage takes an empty zone as a real one.
+func TestCluster_UpdateLayout_RefusesBadChanges(t *testing.T) {
+	for _, body := range []string{
+		`{}`,
+		`{"roles":[]}`,
+		`{"roles":[{"id":"abcd","zone":"dc1"}]}`,
+		`{"roles":[{"id":"abcd","remove":true}]}`,
+		`{"roles":[{"id":"` + testNodeID + `"}]}`,
+		`{"roles":[{"id":"` + testNodeID + `","zone":"  "}]}`,
+		`{"roles":[{"id":"` + testNodeID + `","zone":"dc1","capacity":1023}]}`,
+	} {
+		app, admin := newClusterTestApp(t)
+		admin.UpdateClusterLayoutFn = func(context.Context, models.UpdateClusterLayoutRequest) (json.RawMessage, error) {
+			t.Errorf("%s reached Garage", body)
+			return nil, nil
+		}
+		if resp := postLayout(t, app, "update", body); resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("%s: status = %d", body, resp.StatusCode)
+		}
+	}
+}
+
+func TestCluster_ApplyAndSkip_RequireVersion(t *testing.T) {
+	app, _ := newClusterTestApp(t)
+	for _, path := range []string{"apply", "skip-dead-nodes"} {
+		for _, body := range []string{`{}`, `{"version":0}`, `{"version":-1}`} {
+			if resp := postLayout(t, app, path, body); resp.StatusCode != http.StatusBadRequest {
+				t.Errorf("%s %s: status = %d", path, body, resp.StatusCode)
+			}
+		}
+	}
+}
+
+// Garage reports a stale version as a 500. The user needs its reason, without the prefix.
+func TestCluster_ApplyLayout_ReturnsGarageReason(t *testing.T) {
+	app, admin := newClusterTestApp(t)
+	admin.ApplyClusterLayoutFn = func(_ context.Context, version uint64) (json.RawMessage, error) {
+		if version != 4 {
+			t.Errorf("version = %d", version)
+		}
+		return nil, errors.New(`ApplyClusterLayout: API returned status 500: {"code":"InternalError","message":"Internal error: Invalid new layout version"}`)
+	}
+	resp := postLayout(t, app, "apply", `{"version":4}`)
+	var body models.APIResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusInternalServerError || body.Error.Message != "Invalid new layout version" {
+		t.Errorf("status = %d, error = %+v", resp.StatusCode, body.Error)
+	}
+}
+
+func TestCluster_PreviewLayout_PassesGarageResponseThrough(t *testing.T) {
+	app, admin := newClusterTestApp(t)
+	admin.PreviewClusterLayoutChangesFn = func(context.Context) (json.RawMessage, error) {
+		return json.RawMessage(`{"error":"not enough nodes"}`), nil
+	}
+	resp := postLayout(t, app, "preview", "")
+	var body struct {
+		Data struct {
+			Error string `json:"error"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK || body.Data.Error != "not enough nodes" {
+		t.Errorf("status = %d, body = %+v", resp.StatusCode, body)
+	}
+}
+
+func TestCluster_GetLayout_UnsupportedReturns501(t *testing.T) {
+	app, admin := newClusterTestApp(t)
+	admin.GetClusterLayoutFn = func(context.Context) (json.RawMessage, error) { return nil, services.ErrUnsupported }
+	if resp := doGet(t, app, "/cluster/layout"); resp.StatusCode != http.StatusNotImplemented {
+		t.Errorf("status = %d", resp.StatusCode)
 	}
 }

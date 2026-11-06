@@ -58,6 +58,11 @@ const (
 	PermNodeInfo          = "node.info"
 	PermNodeStatistics    = "node.statistics"
 	PermClusterManage     = "cluster.manage"
+	PermLayoutRead        = "cluster.layout.read"
+	PermLayoutHistory     = "cluster.layout.history"
+	PermLayoutUpdate      = "cluster.layout.update"
+	PermLayoutApply       = "cluster.layout.apply"
+	PermLayoutSkipDead    = "cluster.layout.skip_dead_nodes"
 )
 
 // Vocabulary is the full v1 permission registry.
@@ -97,7 +102,8 @@ var Vocabulary = map[string]PermSpec{
 	"cluster.statistics":    {Scope: ScopeGlobal, Endpoints: []string{"GetClusterStatistics"}},
 	"cluster.connect_nodes": {Scope: ScopeGlobal, Endpoints: []string{"ConnectClusterNodes"}},
 
-	"cluster.layout.read":            {Scope: ScopeGlobal, Endpoints: []string{"GetClusterLayout"}},
+	"cluster.layout.read":            {Scope: ScopeGlobal, Endpoints: []string{"GetClusterLayout", "PreviewClusterLayoutChanges"}},
+	"cluster.layout.update":          {Scope: ScopeGlobal, Endpoints: []string{"UpdateClusterLayout", "RevertClusterLayout"}},
 	"cluster.layout.history":         {Scope: ScopeGlobal, Endpoints: []string{"GetClusterLayoutHistory"}},
 	"cluster.layout.apply":           {Scope: ScopeGlobal, Endpoints: []string{"ApplyClusterLayout"}},
 	"cluster.layout.skip_dead_nodes": {Scope: ScopeGlobal, Endpoints: []string{"ClusterLayoutSkipDeadNodes"}},

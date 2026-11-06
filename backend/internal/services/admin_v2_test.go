@@ -375,6 +375,62 @@ func TestRetryBlockResync_RequestBodies(t *testing.T) {
 	}
 }
 
+// Garage tells the change kinds apart by their fields: a removal must carry remove, a
+// gateway must send a null capacity, and every assignment must send tags.
+func TestClusterLayout_RequestsAndPassThrough(t *testing.T) {
+	var calls []string
+	svc, _ := newAdminTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		calls = append(calls, r.Method+" "+r.URL.Path+" "+string(b))
+		_, _ = w.Write([]byte(`{"version":7}`))
+	}))
+	ctx := context.Background()
+	capacity := uint64(2048)
+	data, err := svc.GetClusterLayout(ctx)
+	if err != nil || string(data) != `{"version":7}` {
+		t.Fatalf("GetClusterLayout = %s, %v", data, err)
+	}
+	for _, call := range []func() (json.RawMessage, error){
+		func() (json.RawMessage, error) { return svc.GetClusterLayoutHistory(ctx) },
+		func() (json.RawMessage, error) {
+			return svc.UpdateClusterLayout(ctx, models.UpdateClusterLayoutRequest{
+				Roles: []models.NodeRoleChange{
+					{ID: "a", Remove: true},
+					{ID: "b", Zone: "dc1", Tags: []string{}},
+					{ID: "c", Zone: "dc2", Capacity: &capacity, Tags: []string{"x"}},
+				},
+				Parameters: json.RawMessage(`{"zoneRedundancy":"maximum"}`),
+			})
+		},
+		func() (json.RawMessage, error) {
+			return svc.UpdateClusterLayout(ctx, models.UpdateClusterLayoutRequest{Parameters: json.RawMessage(`{"zoneRedundancy":{"atLeast":2}}`)})
+		},
+		func() (json.RawMessage, error) { return svc.PreviewClusterLayoutChanges(ctx) },
+		func() (json.RawMessage, error) { return svc.ApplyClusterLayout(ctx, 7) },
+		func() (json.RawMessage, error) { return svc.RevertClusterLayout(ctx) },
+		func() (json.RawMessage, error) {
+			return svc.ClusterLayoutSkipDeadNodes(ctx, models.SkipDeadNodesRequest{Version: 7})
+		},
+	} {
+		if _, err := call(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := []string{
+		"GET /v2/GetClusterLayout ",
+		"GET /v2/GetClusterLayoutHistory ",
+		`POST /v2/UpdateClusterLayout {"roles":[{"id":"a","remove":true,"zone":"","capacity":null,"tags":null},{"id":"b","zone":"dc1","capacity":null,"tags":[]},{"id":"c","zone":"dc2","capacity":2048,"tags":["x"]}],"parameters":{"zoneRedundancy":"maximum"}}`,
+		`POST /v2/UpdateClusterLayout {"parameters":{"zoneRedundancy":{"atLeast":2}}}`,
+		"POST /v2/PreviewClusterLayoutChanges ",
+		`POST /v2/ApplyClusterLayout {"version":7}`,
+		"POST /v2/RevertClusterLayout ",
+		`POST /v2/ClusterLayoutSkipDeadNodes {"version":7,"allowMissingData":false}`,
+	}
+	if !reflect.DeepEqual(calls, want) {
+		t.Errorf("calls:\n%q\nwant:\n%q", calls, want)
+	}
+}
+
 // After a removal the response no longer lists the alias, and a stale cache entry
 // would keep answering for that name.
 func TestRemoveBucketAlias_ForgetsTheRemovedName(t *testing.T) {

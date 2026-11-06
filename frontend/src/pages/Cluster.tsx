@@ -17,6 +17,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Button } from '@/components/ui/button';
 import { BlockErrorsTab } from '@/components/cluster/BlockErrorsTab';
 import { useBlockErrors } from '@/components/cluster/helpers';
+import { LayoutTab } from '@/components/cluster/LayoutTab';
 import { WorkersTab } from '@/components/cluster/WorkersTab';
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -51,6 +52,7 @@ export function Cluster() {
   const { hasClusterPerm } = usePermissions();
   const showWorkers = features?.workersAndBlocks && hasClusterPerm('worker.list');
   const showBlockErrors = features?.workersAndBlocks && hasClusterPerm('block.list_errors');
+  const showLayout = features?.clusterLayout && hasClusterPerm('cluster.layout.read');
   const blockErrorCount = useBlockErrors(!!showBlockErrors).count;
 
   const { clusters, activeClusterId } = useClusterStore();
@@ -69,11 +71,12 @@ export function Cluster() {
     enabled: !!activeClusterId,
   });
 
-  const { data: statistics, isLoading: statisticsLoading, isError: statisticsError, refetch: refetchStatistics } = useQuery({
+  const { data: statistics } = useQuery({
     queryKey: queryKeys.cluster.statistics(activeClusterId),
     queryFn: () => garageApi.getClusterStatistics(),
     refetchInterval: 30000,
-    enabled: !!activeClusterId && !!features && features.clusterStatistics !== false,
+    // Garage answers "Layout not ready" until the first layout, and that must not hide the page where it is made.
+    enabled: !!activeClusterId && !!features && features.clusterStatistics !== false && (status?.layoutVersion ?? 0) > 0,
   });
 
   const { data: nodeInfo, isLoading: nodeInfoLoading } = useQuery({
@@ -92,7 +95,9 @@ export function Cluster() {
     return <Navigate to="/" replace />;
   }
 
-  if (healthError || statusError || statisticsError) {
+  // Statistics have their own tab with an empty state. They are not worth hiding the page,
+  // and their first load right after the first layout must not remount the open tab.
+  if (healthError || statusError) {
     return (
       <div>
         <PageHeader title={t('nav.cluster')} subtitle={t('cluster.load_error_subtitle')} />
@@ -102,18 +107,19 @@ export function Cluster() {
             title={t('cluster.unavailable_title')}
             description={t('cluster.unavailable_description')}
             tone="destructive"
-            action={<Button onClick={() => void Promise.all([refetchHealth(), refetchStatus(), refetchStatistics()])}>{t('common.retry')}</Button>}
+            action={<Button onClick={() => void Promise.all([refetchHealth(), refetchStatus()])}>{t('common.retry')}</Button>}
           />
         </div>
       </div>
     );
   }
 
-  const isLoading = healthLoading || statusLoading || statisticsLoading;
+  const isLoading = healthLoading || statusLoading;
 
   const getHealthStatus = () => {
     if (!health) return { color: 'text-gray-500', bgColor: 'bg-gray-100', label: t('cluster.health_unknown'), icon: AlertCircle };
     if (
+      health.storageNodes > 0 &&
       health.storageNodesUp === health.storageNodes &&
       health.partitionsAllOk === health.partitions &&
       health.connectedNodes === health.knownNodes
@@ -233,6 +239,7 @@ export function Cluster() {
         <Tabs defaultValue="nodes" className="space-y-4">
           <TabsList className="overflow-x-auto overflow-y-hidden">
             <TabsTrigger value="nodes">{t('cluster.nodes_tab')}</TabsTrigger>
+            {showLayout && <TabsTrigger value="layout">{t('cluster.layout_tab')}</TabsTrigger>}
             <TabsTrigger value="statistics">{t('cluster.statistics_tab')}</TabsTrigger>
             <TabsTrigger value="details">{t('cluster.details_tab')}</TabsTrigger>
             {showWorkers && <TabsTrigger value="workers">{t('cluster.workers_tab')}</TabsTrigger>}
@@ -575,6 +582,13 @@ export function Cluster() {
               </Card>
             )}
           </TabsContent>
+
+          {showLayout && (
+            <TabsContent value="layout" className="space-y-4">
+              {/* Keyed so a preview made on one cluster can never be applied on another. */}
+              <LayoutTab key={activeClusterId} nodes={status?.nodes ?? []} />
+            </TabsContent>
+          )}
 
           {showWorkers && (
             <TabsContent value="workers" className="space-y-4">

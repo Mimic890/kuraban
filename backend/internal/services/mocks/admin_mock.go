@@ -6,6 +6,7 @@ package mocks
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -38,22 +39,29 @@ type AdminMock struct {
 	DeleteKeyFn       func(ctx context.Context, keyID string) error
 
 	// Buckets
-	ListBucketsFn          func(ctx context.Context) ([]models.ListBucketsResponseItem, error)
-	GetBucketInfoFn        func(ctx context.Context, bucketID string) (*models.GarageBucketInfo, error)
-	GetBucketInfoByAliasFn func(ctx context.Context, alias string) (*models.GarageBucketInfo, error)
-	CreateBucketFn         func(ctx context.Context, req models.CreateBucketAdminRequest) (*models.GarageBucketInfo, error)
-	UpdateBucketFn         func(ctx context.Context, bucketID string, req models.UpdateBucketRequest) (*models.GarageBucketInfo, error)
-	CleanupUploadsFn       func(ctx context.Context, bucketID string, olderThanSecs int64) (int64, error)
-	AddBucketAliasFn       func(ctx context.Context, bucketID, alias string) (*models.GarageBucketInfo, error)
-	RemoveBucketAliasFn    func(ctx context.Context, bucketID, alias string) (*models.GarageBucketInfo, error)
-	ListWorkersFn          func(ctx context.Context) (*models.MultiNodeResponse, error)
-	ListBlockErrorsFn      func(ctx context.Context) (*models.MultiNodeResponse, error)
-	GetBlockInfoFn         func(ctx context.Context, nodeID, blockHash string) (*models.MultiNodeResponse, error)
-	RetryBlockResyncFn     func(ctx context.Context, nodeID, blockHash string) (*models.MultiNodeResponse, error)
-	RetryAllBlockResyncFn  func(ctx context.Context) (*models.MultiNodeResponse, error)
-	DeleteBucketFn         func(ctx context.Context, bucketID string) error
-	AllowBucketKeyFn       func(ctx context.Context, req models.BucketKeyPermRequest) (*models.GarageBucketInfo, error)
-	DenyBucketKeyFn        func(ctx context.Context, req models.BucketKeyPermRequest) (*models.GarageBucketInfo, error)
+	ListBucketsFn                 func(ctx context.Context) ([]models.ListBucketsResponseItem, error)
+	GetBucketInfoFn               func(ctx context.Context, bucketID string) (*models.GarageBucketInfo, error)
+	GetBucketInfoByAliasFn        func(ctx context.Context, alias string) (*models.GarageBucketInfo, error)
+	CreateBucketFn                func(ctx context.Context, req models.CreateBucketAdminRequest) (*models.GarageBucketInfo, error)
+	UpdateBucketFn                func(ctx context.Context, bucketID string, req models.UpdateBucketRequest) (*models.GarageBucketInfo, error)
+	CleanupUploadsFn              func(ctx context.Context, bucketID string, olderThanSecs int64) (int64, error)
+	AddBucketAliasFn              func(ctx context.Context, bucketID, alias string) (*models.GarageBucketInfo, error)
+	RemoveBucketAliasFn           func(ctx context.Context, bucketID, alias string) (*models.GarageBucketInfo, error)
+	ListWorkersFn                 func(ctx context.Context) (*models.MultiNodeResponse, error)
+	ListBlockErrorsFn             func(ctx context.Context) (*models.MultiNodeResponse, error)
+	GetBlockInfoFn                func(ctx context.Context, nodeID, blockHash string) (*models.MultiNodeResponse, error)
+	RetryBlockResyncFn            func(ctx context.Context, nodeID, blockHash string) (*models.MultiNodeResponse, error)
+	RetryAllBlockResyncFn         func(ctx context.Context) (*models.MultiNodeResponse, error)
+	GetClusterLayoutFn            func(ctx context.Context) (json.RawMessage, error)
+	GetClusterLayoutHistoryFn     func(ctx context.Context) (json.RawMessage, error)
+	UpdateClusterLayoutFn         func(ctx context.Context, req models.UpdateClusterLayoutRequest) (json.RawMessage, error)
+	PreviewClusterLayoutChangesFn func(ctx context.Context) (json.RawMessage, error)
+	ApplyClusterLayoutFn          func(ctx context.Context, version uint64) (json.RawMessage, error)
+	RevertClusterLayoutFn         func(ctx context.Context) (json.RawMessage, error)
+	ClusterLayoutSkipDeadNodesFn  func(ctx context.Context, req models.SkipDeadNodesRequest) (json.RawMessage, error)
+	DeleteBucketFn                func(ctx context.Context, bucketID string) error
+	AllowBucketKeyFn              func(ctx context.Context, req models.BucketKeyPermRequest) (*models.GarageBucketInfo, error)
+	DenyBucketKeyFn               func(ctx context.Context, req models.BucketKeyPermRequest) (*models.GarageBucketInfo, error)
 
 	// Cluster
 	GetClusterHealthFn     func(ctx context.Context) (*models.ClusterHealth, error)
@@ -209,6 +217,62 @@ func (m *AdminMock) RemoveBucketAlias(ctx context.Context, bucketID, alias strin
 		return nil, errNotConfigured("RemoveBucketAlias")
 	}
 	return m.RemoveBucketAliasFn(ctx, bucketID, alias)
+}
+
+func (m *AdminMock) GetClusterLayout(ctx context.Context) (json.RawMessage, error) {
+	m.record("GetClusterLayout")
+	if m.GetClusterLayoutFn == nil {
+		return nil, errNotConfigured("GetClusterLayout")
+	}
+	return m.GetClusterLayoutFn(ctx)
+}
+
+func (m *AdminMock) GetClusterLayoutHistory(ctx context.Context) (json.RawMessage, error) {
+	m.record("GetClusterLayoutHistory")
+	if m.GetClusterLayoutHistoryFn == nil {
+		return nil, errNotConfigured("GetClusterLayoutHistory")
+	}
+	return m.GetClusterLayoutHistoryFn(ctx)
+}
+
+func (m *AdminMock) UpdateClusterLayout(ctx context.Context, req models.UpdateClusterLayoutRequest) (json.RawMessage, error) {
+	m.record("UpdateClusterLayout")
+	if m.UpdateClusterLayoutFn == nil {
+		return nil, errNotConfigured("UpdateClusterLayout")
+	}
+	return m.UpdateClusterLayoutFn(ctx, req)
+}
+
+func (m *AdminMock) PreviewClusterLayoutChanges(ctx context.Context) (json.RawMessage, error) {
+	m.record("PreviewClusterLayoutChanges")
+	if m.PreviewClusterLayoutChangesFn == nil {
+		return nil, errNotConfigured("PreviewClusterLayoutChanges")
+	}
+	return m.PreviewClusterLayoutChangesFn(ctx)
+}
+
+func (m *AdminMock) ApplyClusterLayout(ctx context.Context, version uint64) (json.RawMessage, error) {
+	m.record("ApplyClusterLayout")
+	if m.ApplyClusterLayoutFn == nil {
+		return nil, errNotConfigured("ApplyClusterLayout")
+	}
+	return m.ApplyClusterLayoutFn(ctx, version)
+}
+
+func (m *AdminMock) RevertClusterLayout(ctx context.Context) (json.RawMessage, error) {
+	m.record("RevertClusterLayout")
+	if m.RevertClusterLayoutFn == nil {
+		return nil, errNotConfigured("RevertClusterLayout")
+	}
+	return m.RevertClusterLayoutFn(ctx)
+}
+
+func (m *AdminMock) ClusterLayoutSkipDeadNodes(ctx context.Context, req models.SkipDeadNodesRequest) (json.RawMessage, error) {
+	m.record("ClusterLayoutSkipDeadNodes")
+	if m.ClusterLayoutSkipDeadNodesFn == nil {
+		return nil, errNotConfigured("ClusterLayoutSkipDeadNodes")
+	}
+	return m.ClusterLayoutSkipDeadNodesFn(ctx, req)
 }
 
 func (m *AdminMock) ListWorkers(ctx context.Context) (*models.MultiNodeResponse, error) {

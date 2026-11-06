@@ -304,6 +304,13 @@ func SetupRoutes(
 		cluster.Get("/workers", az.Require(authz.ScopeNone, authz.PermWorkerList), clusterHandler.ListWorkers)                             // List background workers
 		cluster.Get("/block-errors", az.Require(authz.ScopeNone, authz.PermBlockListErrors), clusterHandler.ListBlockErrors)               // List block errors
 		cluster.Post("/block-errors/retry", az.Require(authz.ScopeNone, authz.PermBlockRetryResync), clusterHandler.RetryBlockResync)      // Retry block resync
+		cluster.Get("/layout", az.Require(authz.ScopeNone, authz.PermLayoutRead), clusterHandler.GetLayout)                                // Get current layout and staged changes
+		cluster.Get("/layout/history", az.Require(authz.ScopeNone, authz.PermLayoutHistory), clusterHandler.GetLayoutHistory)              // List layout versions and migration progress
+		cluster.Post("/layout/update", az.Require(authz.ScopeNone, authz.PermLayoutUpdate), clusterHandler.UpdateLayout)                   // Stage layout changes
+		cluster.Post("/layout/preview", az.Require(authz.ScopeNone, authz.PermLayoutRead), clusterHandler.PreviewLayout)                   // Compute the next layout without applying it
+		cluster.Post("/layout/apply", az.Require(authz.ScopeNone, authz.PermLayoutApply), clusterHandler.ApplyLayout)                      // Apply staged changes, which moves data
+		cluster.Post("/layout/revert", az.Require(authz.ScopeNone, authz.PermLayoutUpdate), clusterHandler.RevertLayout)                   // Discard staged changes
+		cluster.Post("/layout/skip-dead-nodes", az.Require(authz.ScopeNone, authz.PermLayoutSkipDead), clusterHandler.SkipDeadNodes)       // Finish a migration without dead nodes
 	}
 
 	// Monitoring routes

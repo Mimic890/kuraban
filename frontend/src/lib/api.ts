@@ -7,7 +7,12 @@ import type {
   BucketDetails,
   ClusterHealth,
   ClusterStatistics,
+  ClusterLayout,
   ClusterStatus,
+  LayoutHistory,
+  LayoutParameters,
+  LayoutPreview,
+  LayoutRoleChange,
   GarageCapabilities,
   BlockError,
   BlockInfo,
@@ -612,6 +617,43 @@ export const garageApi = {
 
   getBlockInfo: async (nodeId: string, hash: string): Promise<PerNode<BlockInfo>> => {
     const response = await api.get(`/v1/cluster/nodes/${nodeId}/blocks/${hash}`);
+    return response.data.data;
+  },
+
+  getClusterLayout: async (silent = false): Promise<ClusterLayout> => {
+    const response = await api.get('/v1/cluster/layout', { silent });
+    return response.data.data;
+  },
+
+  getLayoutHistory: async (): Promise<LayoutHistory> => {
+    const response = await api.get('/v1/cluster/layout/history');
+    return response.data.data;
+  },
+
+  // The layout calls below are silent: Garage's reason is what the user has to act on,
+  // so useLayoutAction shows it instead of the generic error toast.
+  updateClusterLayout: async (update: { roles?: LayoutRoleChange[]; parameters?: LayoutParameters }): Promise<ClusterLayout> => {
+    const response = await api.post('/v1/cluster/layout/update', update, { silent: true });
+    return response.data.data;
+  },
+
+  previewLayout: async (): Promise<LayoutPreview> => {
+    const response = await api.post('/v1/cluster/layout/preview', undefined, { silent: true });
+    return response.data.data;
+  },
+
+  applyLayout: async (version: number): Promise<unknown> => {
+    const response = await api.post('/v1/cluster/layout/apply', { version }, { silent: true });
+    return response.data.data;
+  },
+
+  revertLayout: async (): Promise<ClusterLayout> => {
+    const response = await api.post('/v1/cluster/layout/revert', undefined, { silent: true });
+    return response.data.data;
+  },
+
+  skipDeadNodes: async (version: number, allowMissingData: boolean): Promise<{ ackUpdated: string[]; syncUpdated: string[] }> => {
+    const response = await api.post('/v1/cluster/layout/skip-dead-nodes', { version, allowMissingData }, { silent: true });
     return response.data.data;
   },
 

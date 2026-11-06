@@ -143,7 +143,8 @@ Permission names are lowercase and dot-separated: two segments, or three for `cl
 | `cluster.health` | global | | GetClusterHealth |
 | `cluster.statistics` | global | | GetClusterStatistics |
 | `cluster.connect_nodes` | global | | ConnectClusterNodes |
-| `cluster.layout.read` | global | | GetClusterLayout |
+| `cluster.layout.read` | global | | GetClusterLayout, PreviewClusterLayoutChanges |
+| `cluster.layout.update` | global | | UpdateClusterLayout, RevertClusterLayout |
 | `cluster.layout.history` | global | | GetClusterLayoutHistory |
 | `cluster.layout.apply` | global | | ApplyClusterLayout |
 | `cluster.layout.skip_dead_nodes` | global | | ClusterLayoutSkipDeadNodes |
@@ -159,9 +160,11 @@ Permission names are lowercase and dot-separated: two segments, or three for `cl
 | `block.info` | global | | GetBlockInfo |
 | `block.retry_resync` | global | | RetryBlockResync |
 
-Some permissions have no UI route yet: `bucket.inspect_object`, `cluster.layout.*`, `worker.info`, `worker.*_variable`, `cluster.connect_nodes`, `node.snapshot`, `node.repair`, and `key.import`. They're valid in config but don't gate anything in the UI so far. The vocabulary is complete up front so your config keeps working as the UI grows.
+Some permissions have no UI route yet: `bucket.inspect_object`, `worker.info`, `worker.*_variable`, `cluster.connect_nodes`, `node.snapshot`, `node.repair`, and `key.import`. They're valid in config but don't gate anything in the UI so far. The vocabulary is complete up front so your config keeps working as the UI grows.
 
-Dangerous operations (`cluster.layout.apply`, `node.repair`, `worker.set_variable`) are separate, individually grantable permissions. They're never bundled into a read-only preset, so you can give a team cluster visibility without also giving it the power to break the cluster.
+Dangerous operations (`cluster.layout.apply`, `cluster.layout.skip_dead_nodes`, `node.repair`, `worker.set_variable`) are separate, individually grantable permissions. They're never bundled into a read-only preset, so you can give a team cluster visibility without also giving it the power to break the cluster.
+
+`cluster.layout.update` only prepares changes and can discard ones prepared by others. No data moves until someone with `cluster.layout.apply` applies them.
 
 Adding or removing an alias needs its permission on both the bucket and the alias, because team access follows bucket names. Kuraban calls a bucket by the first of its global aliases in alphabetical order, so an alias that sorts first also moves the bucket under that name's prefix.
 

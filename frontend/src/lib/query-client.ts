@@ -37,6 +37,8 @@ export const queryKeys = {
     statistics: (clusterId?: string | null) => [...queryKeys.cluster.all, 'statistics', clusterId ?? 'none'] as const,
     workers: (clusterId?: string | null) => [...queryKeys.cluster.all, 'workers', clusterId ?? 'none'] as const,
     blockErrors: (clusterId?: string | null) => [...queryKeys.cluster.all, 'block-errors', clusterId ?? 'none'] as const,
+    layout: (clusterId?: string | null) => [...queryKeys.cluster.all, 'layout', clusterId ?? 'none'] as const,
+    layoutHistory: (clusterId?: string | null) => [...queryKeys.cluster.all, 'layout-history', clusterId ?? 'none'] as const,
     block: (clusterId: string | null | undefined, nodeId: string, hash: string) =>
       [...queryKeys.cluster.all, 'block', clusterId ?? 'none', nodeId, hash] as const,
   },

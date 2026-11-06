@@ -225,3 +225,32 @@ type MultiNodeResponse struct {
 	Success map[string]interface{} `json:"success"`
 	Error   map[string]string      `json:"error"`
 }
+
+// NodeRoleChange stages a node's new role or, with Remove, its removal from the layout.
+// A nil Capacity makes the node a gateway, which stores no data.
+type NodeRoleChange struct {
+	ID       string   `json:"id"`
+	Remove   bool     `json:"remove,omitempty"`
+	Zone     string   `json:"zone"`
+	Capacity *uint64  `json:"capacity"`
+	Tags     []string `json:"tags"`
+}
+
+// UpdateClusterLayoutRequest stages role changes and, optionally, layout parameters.
+// Parameters keeps Garage's own shape: {"zoneRedundancy": "maximum" | {"atLeast": n}}.
+type UpdateClusterLayoutRequest struct {
+	Roles      []NodeRoleChange `json:"roles,omitempty"`
+	Parameters json.RawMessage  `json:"parameters,omitempty"`
+}
+
+// ApplyClusterLayoutRequest names the version the staged changes become.
+type ApplyClusterLayoutRequest struct {
+	Version uint64 `json:"version"`
+}
+
+// SkipDeadNodesRequest lets a migration to Version finish without the nodes that are down.
+// AllowMissingData also skips nodes that are up but cannot finish, which can lose data.
+type SkipDeadNodesRequest struct {
+	Version          uint64 `json:"version"`
+	AllowMissingData bool   `json:"allowMissingData"`
+}
