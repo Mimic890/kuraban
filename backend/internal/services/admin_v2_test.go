@@ -3,9 +3,11 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -577,5 +579,151 @@ func TestNonDebugLogLevelKeepsSessionLoggingOff(t *testing.T) {
 	}
 	if svc.http.sessionLogging {
 		t.Error("azuretls session logging must stay disabled for non-debug log levels")
+	}
+}
+
+// pagedListHandler serves ids the way Garage 2.5 does: offset is inclusive and
+// limit caps the page. requests counts the calls.
+func pagedListHandler(ids []string, pad string, requests *int) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		*requests++
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		offset := r.URL.Query().Get("offset")
+		page := []models.ListKeysResponseItem{}
+		for _, id := range ids {
+			if id >= offset && len(page) < limit {
+				page = append(page, models.ListKeysResponseItem{ID: id, Name: pad})
+			}
+		}
+		_ = json.NewEncoder(w).Encode(page)
+	}
+}
+
+func sortedIDs(n int) []string {
+	ids := make([]string, n)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("GK%06d", i)
+	}
+	return ids
+}
+
+func TestListKeys_WalksEveryPage(t *testing.T) {
+	for _, n := range []int{0, 1, listPageSize - 1, listPageSize, listPageSize + 1, listPageSize*2 + 7} {
+		var requests int
+		svc, _ := newAdminTestServer(t, pagedListHandler(sortedIDs(n), "", &requests))
+		got, err := svc.ListKeys(context.Background())
+		if err != nil {
+			t.Fatalf("n=%d: %v", n, err)
+		}
+		if len(got) != n {
+			t.Fatalf("n=%d: got %d keys", n, len(got))
+		}
+		for i, k := range got {
+			if k.ID != sortedIDs(n)[i] {
+				t.Fatalf("n=%d: key %d = %s: duplicate or out of order", n, i, k.ID)
+			}
+		}
+		if want := n/listPageSize + 1; requests != want {
+			t.Errorf("n=%d: %d requests, want %d", n, requests, want)
+		}
+	}
+}
+
+// Garage before 2.5 ignores offset and limit and returns the whole list.
+func TestListKeys_ServerIgnoringPagingDoesNotLoop(t *testing.T) {
+	n := listPageSize*2 + 3
+	var requests int
+	svc, _ := newAdminTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if requests > 5 {
+			t.Error("kept requesting pages from a server that ignores them")
+			http.Error(w, "stop", http.StatusInternalServerError)
+			return
+		}
+		page := []models.ListKeysResponseItem{}
+		for _, id := range sortedIDs(n) {
+			page = append(page, models.ListKeysResponseItem{ID: id})
+		}
+		_ = json.NewEncoder(w).Encode(page)
+	}))
+	got, err := svc.ListKeys(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != n {
+		t.Errorf("got %d keys, want %d", len(got), n)
+	}
+}
+
+// A key deleted between two pages must not end the walk early.
+func TestListKeys_ItemDeletedBetweenPages(t *testing.T) {
+	ids := sortedIDs(listPageSize + 5)
+	var requests int
+	base := pagedListHandler(ids, "", &requests)
+	svc, _ := newAdminTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if requests == 1 {
+			// The key the second page starts from is gone by now.
+			ids = append(ids[:listPageSize-1:listPageSize-1], ids[listPageSize:]...)
+			base = pagedListHandler(ids, "", &requests)
+		}
+		base(w, r)
+	}))
+	got, err := svc.ListKeys(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != listPageSize+5 {
+		t.Errorf("got %d keys, want %d", len(got), listPageSize+5)
+	}
+}
+
+func TestListKeys_PageLargerThanDefaultDecodeLimit(t *testing.T) {
+	var requests int
+	svc, _ := newAdminTestServer(t, pagedListHandler(sortedIDs(300), strings.Repeat("x", 8<<10), &requests))
+	got, err := svc.ListKeys(context.Background())
+	if err != nil {
+		t.Fatalf("a 2.4 MiB page must decode: %v", err)
+	}
+	if len(got) != 300 {
+		t.Errorf("got %d keys", len(got))
+	}
+}
+
+func TestListKeys_ErrorOnLaterPageFails(t *testing.T) {
+	var requests int
+	base := pagedListHandler(sortedIDs(listPageSize+1), "", &requests)
+	svc, _ := newAdminTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if requests == 1 {
+			http.Error(w, "boom", http.StatusInternalServerError)
+			return
+		}
+		base(w, r)
+	}))
+	if got, err := svc.ListKeys(context.Background()); err == nil {
+		t.Fatalf("a failed page must not return a partial list, got %d keys", len(got))
+	}
+}
+
+func TestListBuckets_WalksEveryPage(t *testing.T) {
+	n := listPageSize + 2
+	var requests int
+	svc, _ := newAdminTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		offset := r.URL.Query().Get("offset")
+		page := []models.ListBucketsResponseItem{}
+		for _, id := range sortedIDs(n) {
+			if id >= offset && len(page) < limit {
+				page = append(page, models.ListBucketsResponseItem{ID: id})
+			}
+		}
+		_ = json.NewEncoder(w).Encode(page)
+	}))
+	got, err := svc.ListBuckets(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != n || requests != 2 {
+		t.Errorf("got %d buckets in %d requests, want %d in 2", len(got), requests, n)
 	}
 }

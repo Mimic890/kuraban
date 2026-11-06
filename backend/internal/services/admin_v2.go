@@ -24,11 +24,7 @@ func NewGarageV2AdminService(cfg *state.ClusterConfig, logLevel, environment str
 
 // ListKeys returns all access keys in the cluster
 func (s *GarageV2AdminService) ListKeys(ctx context.Context) ([]models.ListKeysResponseItem, error) {
-	var result []models.ListKeysResponseItem
-	if err := s.http.request(ctx, http.MethodGet, "/v2/ListKeys", nil, &result); err != nil {
-		return nil, err
-	}
-	return result, nil
+	return listAllPages(ctx, s.http, "ListKeys", func(k models.ListKeysResponseItem) string { return k.ID })
 }
 
 // CreateKey creates a new API access key
@@ -82,22 +78,13 @@ func (s *GarageV2AdminService) ListBuckets(ctx context.Context) ([]models.ListBu
 	log.Debug().Msg("listing buckets")
 	start := time.Now()
 
-	resp, err := s.http.doRequest(ctx, http.MethodGet, "/v2/ListBuckets", nil)
+	result, err := listAllPages(ctx, s.http, "ListBuckets", func(b models.ListBucketsResponseItem) string { return b.ID })
 	if err != nil {
 		log.Error().Err(err).
 			Float64("duration_ms", msSince(start)).
 			Str("outcome", "failure").
 			Msg("garage list_buckets request failed")
-		return nil, fmt.Errorf("request failed: %w", err)
-	}
-
-	var result []models.ListBucketsResponseItem
-	if err := decodeResponse(resp, &result); err != nil {
-		log.Error().Err(err).
-			Float64("duration_ms", msSince(start)).
-			Str("outcome", "failure").
-			Msg("garage list_buckets decode failed")
-		return nil, fmt.Errorf("failed to decode response: %w", err)
+		return nil, err
 	}
 
 	log.Debug().

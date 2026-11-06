@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/Noooste/azuretls-client"
@@ -85,17 +86,62 @@ func (h *adminHTTP) request(ctx context.Context, method, path string, body, resu
 
 // decodeResponse decodes a JSON response into the target structure.
 func decodeResponse(resp *azuretls.Response, target interface{}) error {
+	return decodeResponseLimit(resp, target, 1<<20)
+}
+
+func decodeResponseLimit(resp *azuretls.Response, target interface{}, maxBytes int64) error {
 	defer resp.RawBody.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.RawBody, 64<<10))
 		return fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 	if target != nil {
-		if err := json.NewDecoder(io.LimitReader(resp.RawBody, 1<<20)).Decode(target); err != nil {
+		if err := json.NewDecoder(io.LimitReader(resp.RawBody, maxBytes)).Decode(target); err != nil {
 			return fmt.Errorf("failed to decode response: %w", err)
 		}
 	}
 	return nil
+}
+
+// listPageSize is how many items one Garage list request asks for.
+const listPageSize = 500
+
+// maxListPageBytes bounds one list response. Garage before 2.5 ignores limit
+// and returns its whole list (up to 10 000 items) in one response.
+const maxListPageBytes = 64 << 20
+
+// listAllPages walks a Garage v2 list endpoint, whose offset is the inclusive ID
+// of the first item. Items come sorted by ID, so anything not above the last seen
+// ID is a repeat: the page's own first item, or a whole list from a Garage version
+// that ignores offset and limit, which also ends the walk.
+func listAllPages[T any](ctx context.Context, h *adminHTTP, endpoint string, id func(T) string) ([]T, error) {
+	var all []T
+	offset := ""
+	for {
+		path := fmt.Sprintf("/v2/%s?limit=%d", endpoint, listPageSize)
+		if offset != "" {
+			path += "&offset=" + url.QueryEscape(offset)
+		}
+		resp, err := h.doRequest(ctx, http.MethodGet, path, nil)
+		if err != nil {
+			return nil, fmt.Errorf("request failed: %w", err)
+		}
+		var page []T
+		if err := decodeResponseLimit(resp, &page, maxListPageBytes); err != nil {
+			return nil, err
+		}
+		added := 0
+		for _, item := range page {
+			if id(item) > offset {
+				all = append(all, item)
+				added++
+			}
+		}
+		if len(page) < listPageSize || added == 0 {
+			return all, nil
+		}
+		offset = id(all[len(all)-1])
+	}
 }
 
 // msSince returns duration since t in milliseconds as a float64.

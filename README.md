@@ -80,7 +80,6 @@ The S3, block and RPC charts read Garage's `/metrics` endpoint using the cluster
 
 Garage admin API v2.5.0 features and fixes still missing from the UI:
 
-- [ ] Paginate `ListKeys` / `ListBuckets` (`offset`/`limit`): Garage 2.5 caps them at 10 000 items, so larger lists are silently truncated.
 - [ ] Bucket aliases: add/remove (`AddBucketAlias`, `RemoveBucketAlias`).
 - [ ] "Clean up incomplete uploads" button in bucket settings (`CleanupIncompleteUploads`).
 - [ ] Multi-bucket permission editor for a key: one table of all buckets with Read/Write/Owner, saved at once.
