@@ -542,7 +542,7 @@ export function AccessControl() {
                     <TableHead className="hidden sm:table-cell">{t('access_control.access_key_id_label')}</TableHead>
                     <TableHead>{t('access_control.status_label')}</TableHead>
                     <TableHead className="hidden md:table-cell">{t('access_control.created_label')}</TableHead>
-                    <TableHead className="hidden md:table-cell">{t('access_control.permissions_label')}</TableHead>
+                    <TableHead className="hidden xl:table-cell">{t('access_control.permissions_label')}</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -599,8 +599,8 @@ export function AccessControl() {
                              {t(`access_control.status_${key.status}`)}
                           </Badge>
                         </TableCell>
-                        <TableCell className="hidden md:table-cell">{formatLocalizedDate(key.createdAt)}</TableCell>
-                        <TableCell className="hidden md:table-cell">
+                        <TableCell className="hidden whitespace-nowrap md:table-cell">{formatLocalizedDate(key.createdAt)}</TableCell>
+                        <TableCell className="hidden xl:table-cell">
                           <div className="flex flex-wrap gap-1">
                             {key.permissions.slice(0, 2).map((perm, idx) => (
                               <Badge key={idx} variant="neutral" className="text-xs">

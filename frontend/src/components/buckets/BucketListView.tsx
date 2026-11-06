@@ -93,16 +93,16 @@ export function BucketListView({
                   onClick={() => onViewBucket(bucket.name)}
                 >
                   <TableCell className="font-medium max-w-[200px]">
-                    <span className="truncate">{bucket.name}</span>
+                    <span className="block truncate">{bucket.name}</span>
                     {bucket.websiteAccess && (
-                      <Badge variant="neutral" className="text-xs ml-2">
+                      <Badge variant="neutral" className="text-xs mt-1">
                         <Globe className="h-3 w-3 mr-1" />
                         {t('buckets.fields.website')}
                       </Badge>
                     )}
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
-                    <Badge variant="neutral">{bucket.region || t('buckets.common.default')}</Badge>
+                    <Badge variant="neutral" className="whitespace-nowrap">{bucket.region || t('buckets.common.default')}</Badge>
                   </TableCell>
                   <TableCell className="hidden md:table-cell">{(bucket.objectCount ?? 0).toLocaleString(language)}</TableCell>
                   <TableCell>{bucket.size ? formatBytes(bucket.size) : '0 B'}</TableCell>

@@ -83,7 +83,7 @@ export function BucketDetailShell() {
       </section>
 
       {/* Tabs */}
-      <nav className="flex h-12 items-center gap-0 border-b border-[var(--border)] px-7">
+      <nav className="flex h-12 items-center gap-0 border-b border-[var(--border)] px-1.5 sm:px-7">
         {visibleTabs.map((tab) => (
           <NavLink
             key={tab.to}
@@ -91,7 +91,7 @@ export function BucketDetailShell() {
             end={tab.end}
             className={({ isActive }) =>
               cn(
-                'relative -mb-px inline-flex h-12 items-center px-3.5 text-[0.875rem] font-medium transition-colors',
+                'relative -mb-px inline-flex h-12 items-center px-2.5 text-[0.875rem] sm:px-3.5 font-medium transition-colors',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] rounded-sm',
                 isActive
                   ? 'text-[var(--primary)] border-b-2 border-[var(--primary)]'

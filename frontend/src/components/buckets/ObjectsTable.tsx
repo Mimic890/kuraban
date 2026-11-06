@@ -259,8 +259,8 @@ export function ObjectsTable({
           >
             {t('buckets.fields.objects')} {sortColumn === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
           </TableHead>
-          <TableHead className="hidden sm:table-cell">{t('buckets.fields.type')}</TableHead>
-          <TableHead className="hidden md:table-cell">{t('buckets.fields.storage_class')}</TableHead>
+          <TableHead className="hidden xl:table-cell">{t('buckets.fields.type')}</TableHead>
+          <TableHead className="hidden xl:table-cell">{t('buckets.fields.storage_class')}</TableHead>
           <TableHead
             className="cursor-pointer hover:bg-muted/50"
             onClick={() => handleSort('size')}
@@ -268,7 +268,7 @@ export function ObjectsTable({
             {t('buckets.fields.size')} {sortColumn === 'size' && (sortDirection === 'asc' ? '↑' : '↓')}
           </TableHead>
           <TableHead
-            className="cursor-pointer hover:bg-muted/50"
+            className="hidden cursor-pointer hover:bg-muted/50 sm:table-cell"
             onClick={() => handleSort('modified')}
           >
             {t('buckets.fields.modified')} {sortColumn === 'modified' && (sortDirection === 'asc' ? '↑' : '↓')}
@@ -327,16 +327,16 @@ export function ObjectsTable({
               <TableCell>
                 <div className="flex items-center gap-2">
                   {obj.isFolder ? (
-                    <FolderIcon className="h-4 w-4 text-muted-foreground" />
+                    <FolderIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
                   ) : (
-                    <FileIcon className="h-4 w-4 text-muted-foreground" />
+                    <FileIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
                   )}
                   {obj.isFolder ? (
                     <button
                       type="button"
                       aria-label={t('buckets.objects.open_folder_aria', { key: obj.key })}
                       onClick={() => onNavigateToFolder(obj.key)}
-                      className="font-medium cursor-pointer underline hover:text-primary"
+                      className="text-left font-medium cursor-pointer underline hover:text-primary [overflow-wrap:anywhere]"
                     >
                       {obj.key.replace(currentPath, '').replace(/\/$/, '')}
                     </button>
@@ -345,23 +345,23 @@ export function ObjectsTable({
                       type="button"
                       aria-label={t('buckets.objects.open_object_aria', { key: obj.key })}
                       onClick={() => navigate(`/buckets/${bucketName}/objects/${encodeURIComponent(obj.key)}`)}
-                      className="font-medium cursor-pointer hover:underline hover:text-primary"
+                      className="text-left font-medium cursor-pointer hover:underline hover:text-primary [overflow-wrap:anywhere]"
                     >
                       {obj.key.replace(currentPath, '')}
                     </button>
                   )}
                 </div>
               </TableCell>
-              <TableCell className="hidden sm:table-cell">
+              <TableCell className="hidden xl:table-cell">
                  {obj.isFolder ? t('buckets.objects.directory') : (obj.contentType || 'application/octet-stream')}
               </TableCell>
-              <TableCell className="hidden md:table-cell">
+              <TableCell className="hidden xl:table-cell">
                 {obj.storageClass && (
                   <Badge variant="neutral">{obj.storageClass}</Badge>
                 )}
               </TableCell>
               <TableCell>{obj.isFolder ? null : formatBytes(obj.size)}</TableCell>
-              <TableCell>
+              <TableCell className="hidden sm:table-cell">
                 {obj.lastModified ? (() => {
                   const d = new Date(obj.lastModified);
                   return (

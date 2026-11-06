@@ -320,7 +320,7 @@ export function StatPanel({ title, description, query, unit, reduce = 'last', to
         {q.isLoading && query ? (
           <div className="h-7 w-24 animate-pulse rounded bg-[var(--accent)]" />
         ) : (
-          <div className="truncate text-[1.625rem] font-semibold leading-none tracking-tight tabular" style={{ color }} data-numeric>
+          <div className="truncate text-[1.25rem] font-semibold sm:text-[1.625rem] leading-none tracking-tight tabular" style={{ color }} data-numeric>
             {value ?? formatValue(reduced, unit)}
           </div>
         )}
