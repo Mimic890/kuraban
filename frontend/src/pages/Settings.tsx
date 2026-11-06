@@ -671,8 +671,8 @@ export function Settings() {
     <div className="pb-24">
       <PageHeader title={t('settings.title')} subtitle={t('settings.subtitle')} />
       <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 md:flex-row md:px-6">
-        <nav className="md:w-52 md:shrink-0">
-          <ul className="flex gap-1 overflow-x-auto pb-1 md:sticky md:top-4 md:flex-col md:overflow-visible scrollbar-thin">
+        <nav className="md:sticky md:top-4 md:w-52 md:shrink-0 md:self-start">
+          <ul className="flex gap-1 overflow-x-auto pb-1 md:flex-col md:overflow-visible scrollbar-thin">
             {SETTINGS_SECTIONS.map((s) => {
               const Icon = SECTION_ICONS[s];
               const active = s === section;
