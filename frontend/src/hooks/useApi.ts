@@ -131,13 +131,22 @@ export function useUpdateBucketQuotas() {
   });
 }
 
+export function useBucketDetails(name: string, enabled = true) {
+  const activeClusterId = useClusterStore((state) => state.activeClusterId);
+  return useQuery({
+    queryKey: queryKeys.buckets.detail(name, activeClusterId),
+    queryFn: () => bucketsApi.get(name),
+    enabled: enabled && !!activeClusterId,
+  });
+}
+
 export function useBucketAliasChange() {
   const queryClient = useQueryClient();
   const { t } = useTranslation();
 
   return useMutation({
-    mutationFn: ({ kind, bucketName, alias }: { kind: 'add' | 'remove'; bucketName: string; alias: string }) =>
-      kind === 'add' ? bucketsApi.addAlias(bucketName, alias) : bucketsApi.removeAlias(bucketName, alias),
+    mutationFn: ({ kind, bucketName, alias, accessKeyId }: { kind: 'add' | 'remove'; bucketName: string; alias: string; accessKeyId?: string }) =>
+      kind === 'add' ? bucketsApi.addAlias(bucketName, alias, accessKeyId) : bucketsApi.removeAlias(bucketName, alias, accessKeyId),
     onSuccess: (_, { kind }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.buckets.all });
       toast.success(t(kind === 'add' ? 'api.alias_added_success' : 'api.alias_removed_success'));

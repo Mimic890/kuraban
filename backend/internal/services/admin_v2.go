@@ -293,15 +293,25 @@ func (s *GarageV2AdminService) CleanupIncompleteUploads(ctx context.Context, buc
 
 // AddBucketAlias gives a bucket one more global alias.
 func (s *GarageV2AdminService) AddBucketAlias(ctx context.Context, bucketID, alias string) (*models.GarageBucketInfo, error) {
-	return s.changeBucketAlias(ctx, "AddBucketAlias", bucketID, alias)
+	return s.changeBucketAlias(ctx, "AddBucketAlias", bucketID, "", alias)
 }
 
 // RemoveBucketAlias removes a global alias from a bucket.
 func (s *GarageV2AdminService) RemoveBucketAlias(ctx context.Context, bucketID, alias string) (*models.GarageBucketInfo, error) {
-	return s.changeBucketAlias(ctx, "RemoveBucketAlias", bucketID, alias)
+	return s.changeBucketAlias(ctx, "RemoveBucketAlias", bucketID, "", alias)
 }
 
-func (s *GarageV2AdminService) changeBucketAlias(ctx context.Context, endpoint, bucketID, alias string) (*models.GarageBucketInfo, error) {
+// AddBucketLocalAlias gives a bucket a name that only this key can use.
+func (s *GarageV2AdminService) AddBucketLocalAlias(ctx context.Context, bucketID, accessKeyID, alias string) (*models.GarageBucketInfo, error) {
+	return s.changeBucketAlias(ctx, "AddBucketAlias", bucketID, accessKeyID, alias)
+}
+
+// RemoveBucketLocalAlias removes a key's local alias from a bucket.
+func (s *GarageV2AdminService) RemoveBucketLocalAlias(ctx context.Context, bucketID, accessKeyID, alias string) (*models.GarageBucketInfo, error) {
+	return s.changeBucketAlias(ctx, "RemoveBucketAlias", bucketID, accessKeyID, alias)
+}
+
+func (s *GarageV2AdminService) changeBucketAlias(ctx context.Context, endpoint, bucketID, accessKeyID, alias string) (*models.GarageBucketInfo, error) {
 	log := logpkg.FromCtx(ctx).With().
 		Str("component", "admin").
 		Str("operation", endpoint).
@@ -310,7 +320,11 @@ func (s *GarageV2AdminService) changeBucketAlias(ctx context.Context, endpoint, 
 		Logger()
 
 	var result models.GarageBucketInfo
-	if err := s.http.request(ctx, http.MethodPost, "/v2/"+endpoint, map[string]string{"bucketId": bucketID, "globalAlias": alias}, &result); err != nil {
+	body := map[string]string{"bucketId": bucketID, "globalAlias": alias}
+	if accessKeyID != "" {
+		body = map[string]string{"bucketId": bucketID, "accessKeyId": accessKeyID, "localAlias": alias}
+	}
+	if err := s.http.request(ctx, http.MethodPost, "/v2/"+endpoint, body, &result); err != nil {
 		log.Error().Err(err).Str("outcome", "failure").Msg("garage bucket alias change failed")
 		return nil, err
 	}

@@ -5,7 +5,7 @@ import { AlertTriangle, Eraser, Gauge, Info, Tags, Trash2 } from 'lucide-react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useBuckets, useBucketAliasChange, useCleanupBucketUploads, useDeleteBucket, useUpdateBucketQuotas } from '@/hooks/useApi';
+import { useBuckets, useBucketAliasChange, useBucketDetails, useCleanupBucketUploads, useDeleteBucket, useUpdateBucketQuotas } from '@/hooks/useApi';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { useBucketCan } from '@/hooks/usePermissions';
 import { Button } from '@/components/ui/button';
@@ -397,11 +397,6 @@ function BucketAliases({ bucket, refreshing }: { bucket: Bucket; refreshing: boo
             </li>
           ))}
         </ul>
-        {bucket.localAliases && bucket.localAliases.length > 0 && (
-          <p className="break-words text-[0.8125rem] text-[var(--muted-foreground)]">
-            {t('buckets.settings.aliases.local', { aliases: bucket.localAliases.join(', ') })}
-          </p>
-        )}
         {canBucket(bucket, 'bucket_alias.add') && (
           <form
             className="space-y-2"
@@ -429,6 +424,7 @@ function BucketAliases({ bucket, refreshing }: { bucket: Bucket; refreshing: boo
             )}
           </form>
         )}
+        <LocalAliases bucket={bucket} refreshing={refreshing} />
       </div>
       <ConfirmDialog
         open={removing !== null}
@@ -447,6 +443,117 @@ function BucketAliases({ bucket, refreshing }: { bucket: Bucket; refreshing: boo
         }}
       />
     </section>
+  );
+}
+
+function LocalAliases({ bucket, refreshing }: { bucket: Bucket; refreshing: boolean }) {
+  const { t } = useTranslation();
+  const canBucket = useBucketCan();
+  const change = useBucketAliasChange();
+  // The list of buckets has only the names. Who holds them comes with bucket.read.
+  const { data: details, isFetching } = useBucketDetails(bucket.name, canBucket(bucket, 'bucket.read'));
+  const [picked, setPicked] = useState<string>();
+  const [alias, setAlias] = useState('');
+  const [removing, setRemoving] = useState<{ alias: string; accessKeyId: string; keyName: string } | null>(null);
+
+  if (!details) {
+    if (!bucket.localAliases?.length) return null;
+    return (
+      <p className="break-words text-[0.8125rem] text-[var(--muted-foreground)]">
+        {t('buckets.settings.aliases.local', { aliases: bucket.localAliases.join(', ') })}
+      </p>
+    );
+  }
+
+  const keys = details.keys ?? [];
+  const rows = keys.flatMap((key) => key.bucketLocalAliases.map((name) => ({
+    alias: name,
+    accessKeyId: key.accessKeyId,
+    keyName: key.name || key.accessKeyId,
+  })));
+  // A key that only holds an alias can't reach the bucket, so it isn't offered a new one.
+  const withAccess = keys.filter(({ permissions: p }) => p.read || p.write || p.owner);
+  const keyId = withAccess.some((key) => key.accessKeyId === picked) ? picked : withAccess[0]?.accessKeyId;
+  const newAlias = alias.trim();
+  const busy = refreshing || isFetching || change.isPending;
+
+  return (
+    <div className="space-y-3 border-t border-[var(--border)] pt-4">
+      <div className="space-y-1">
+        <h3 className="text-[0.875rem] font-medium">{t('buckets.settings.aliases.local_heading')}</h3>
+        <p className="text-[0.8125rem] text-[var(--muted-foreground)]">{t('buckets.settings.aliases.local_description')}</p>
+      </div>
+      {rows.length > 0 && (
+        <ul className="divide-y divide-[var(--border)] rounded-lg border border-[var(--border)]">
+          {rows.map((row) => (
+            <li key={`${row.accessKeyId}/${row.alias}`} className="flex min-h-11 items-center justify-between gap-3 px-3 py-1.5">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5">
+                <span className="break-all font-mono text-[0.8438rem]">{row.alias}</span>
+                <span className="break-all text-[0.8125rem] text-[var(--muted-foreground)]">
+                  {t('buckets.settings.aliases.local_key_name', { key: row.keyName })}
+                </span>
+              </div>
+              {canBucket(bucket, 'bucket_alias.remove') && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label={t('buckets.settings.aliases.remove_label', { alias: row.alias })}
+                  disabled={busy}
+                  onClick={() => setRemoving(row)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {canBucket(bucket, 'bucket_alias.add') && (keyId ? (
+        <form
+          className="flex flex-wrap items-center gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            change.mutate(
+              { kind: 'add', bucketName: bucket.name, alias: newAlias, accessKeyId: keyId },
+              { onSuccess: () => setAlias('') }
+            );
+          }}
+        >
+          <Select value={keyId} onChange={setPicked} className="w-48 max-w-full">
+            {withAccess.map((key) => (
+              <SelectOption key={key.accessKeyId} value={key.accessKeyId}>{key.name || key.accessKeyId}</SelectOption>
+            ))}
+          </Select>
+          <Input
+            className="w-48 max-w-full font-mono"
+            value={alias}
+            onChange={(e) => setAlias(e.target.value)}
+            placeholder="local-alias"
+            aria-label={t('buckets.settings.aliases.local_new')}
+          />
+          <Button type="submit" variant="secondary" disabled={newAlias === '' || busy}>
+            {t('buckets.settings.aliases.add')}
+          </Button>
+        </form>
+      ) : (
+        <p className="text-[0.8125rem] text-[var(--muted-foreground)]">{t('buckets.settings.aliases.local_no_keys')}</p>
+      ))}
+      <ConfirmDialog
+        open={removing !== null}
+        onOpenChange={(open) => !open && setRemoving(null)}
+        title={t('buckets.settings.aliases.remove_title', { alias: removing?.alias ?? '' })}
+        description={t('buckets.settings.aliases.local_remove_description', { key: removing?.keyName ?? '' })}
+        note={t('buckets.settings.aliases.remove_note')}
+        confirmLabel={t('buckets.settings.aliases.remove')}
+        loading={change.isPending}
+        onConfirm={() => {
+          if (removing) change.mutate(
+            { kind: 'remove', bucketName: bucket.name, alias: removing.alias, accessKeyId: removing.accessKeyId },
+            { onSettled: () => setRemoving(null) }
+          );
+        }}
+      />
+    </div>
   );
 }
 

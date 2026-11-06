@@ -106,10 +106,10 @@ func (h *MonitoringHandler) GetDashboardMetrics(c fiber.Ctx) error {
 
 		// Get bucket name from aliases
 		bucketName := bucket.ID
-		if len(bucket.LocalAliases) > 0 {
-			bucketName = bucket.LocalAliases[0].Alias
-		} else if len(bucket.GlobalAliases) > 0 {
+		if len(bucket.GlobalAliases) > 0 {
 			bucketName = bucket.GlobalAliases[0]
+		} else if len(bucket.LocalAliases) > 0 {
+			bucketName = bucket.LocalAliases[0].Alias
 		}
 
 		usageByBucket = append(usageByBucket, models.BucketUsage{

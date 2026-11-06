@@ -24,7 +24,15 @@ export interface Bucket {
   effective_permissions?: string[];
 }
 
+export interface BucketKeyAccess {
+  accessKeyId: string;
+  name: string;
+  permissions: { read: boolean; write: boolean; owner: boolean };
+  bucketLocalAliases: string[];
+}
+
 export interface BucketDetails extends Bucket {
+  keys?: BucketKeyAccess[];
   versioning?: boolean;
   encryption?: boolean;
   publicAccess?: boolean;

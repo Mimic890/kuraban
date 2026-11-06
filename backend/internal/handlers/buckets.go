@@ -143,7 +143,7 @@ func allowedOnAlias(c fiber.Ctx, perm, alias string) bool {
 // AddAlias gives a bucket one more global alias
 //
 //	@Summary		Add a bucket alias
-//	@Description	Adds a global alias. Kuraban calls a bucket by the first of its aliases in alphabetical order, so a new alias can change that name. Requires Garage admin API v2.
+//	@Description	Adds a global alias, or with accessKeyId a local alias that only that key can use. Kuraban calls a bucket by the first of its global aliases in alphabetical order, so a new one can change that name. A local alias must not take the name of another bucket. Requires Garage admin API v2.
 //	@Tags			Buckets
 //	@Accept			json
 //	@Produce		json
@@ -188,18 +188,49 @@ func (h *BucketHandler) AddAlias(c fiber.Ctx) error {
 		)
 	}
 
+	if req.AccessKeyID != "" {
+		return addLocalAlias(c, bucketInfo, req.AccessKeyID, req.Alias)
+	}
+
 	result, err := getAdminService(c).AddBucketAlias(ctx, bucketInfo.ID, req.Alias)
 	return bucketAliasResult(c, result, err)
 }
 
-// RemoveAlias removes a global alias from a bucket
+func addLocalAlias(c fiber.Ctx, bucket *models.GarageBucketInfo, accessKeyID, alias string) error {
+	ctx := c.Context()
+	// Otherwise a team could change a key it has nothing to do with.
+	if !slices.ContainsFunc(bucket.Keys, func(k models.BucketKeyInfo) bool { return k.AccessKeyID == accessKeyID }) {
+		return c.Status(fiber.StatusBadRequest).JSON(
+			models.ErrorResponse(models.ErrCodeBadRequest, "This key has no access to the bucket"),
+		)
+	}
+	// Garage looks up a key's local aliases before global ones, so this key's requests
+	// for the other bucket would silently land in this one.
+	other, err := getAdminService(c).GetBucketInfoByAlias(ctx, alias)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(
+			models.ErrorResponse(models.ErrCodeInternalError, "Failed to check the alias: "+err.Error()),
+		)
+	}
+	if other != nil && other.ID != bucket.ID {
+		return c.Status(fiber.StatusBadRequest).JSON(
+			models.ErrorResponse(models.ErrCodeBadRequest, "Another bucket already has this name, so this key would stop reaching it"),
+		)
+	}
+
+	result, err := getAdminService(c).AddBucketLocalAlias(ctx, bucket.ID, accessKeyID, alias)
+	return bucketAliasResult(c, result, err)
+}
+
+// RemoveAlias removes an alias from a bucket
 //
 //	@Summary		Remove a bucket alias
-//	@Description	Removes a global alias. The last one is refused even if local aliases remain, since the bucket would drop out of Kuraban. Requires Garage admin API v2.
+//	@Description	Removes a global alias, or with accessKeyId that key's local alias. The last global alias is refused even if local aliases remain, since the bucket would drop out of Kuraban. Requires Garage admin API v2.
 //	@Tags			Buckets
 //	@Produce		json
 //	@Param			name	path		string	true	"Bucket name"
 //	@Param			alias	path		string	true	"The alias to remove"
+//	@Param			accessKeyId	query	string	false	"The key that holds the local alias"
 //	@Success		200		{object}	models.APIResponse{data=models.BucketAliasesResponse}
 //	@Failure		400		{object}	models.APIResponse{error=models.APIError}
 //	@Failure		403		{object}	models.APIResponse{error=models.APIError}
@@ -227,6 +258,18 @@ func (h *BucketHandler) RemoveAlias(c fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(
 			models.ErrorResponse(models.ErrCodeBucketNotFound, "Bucket does not exist"),
 		)
+	}
+	if accessKeyID := c.Query("accessKeyId"); accessKeyID != "" {
+		// Garage answers 500 for this.
+		if !slices.ContainsFunc(bucketInfo.Keys, func(k models.BucketKeyInfo) bool {
+			return k.AccessKeyID == accessKeyID && slices.Contains(k.BucketLocalAliases, alias)
+		}) {
+			return c.Status(fiber.StatusNotFound).JSON(
+				models.ErrorResponse(models.ErrCodeNotFound, "This key has no such alias on the bucket"),
+			)
+		}
+		result, err := getAdminService(c).RemoveBucketLocalAlias(ctx, bucketInfo.ID, accessKeyID, alias)
+		return bucketAliasResult(c, result, err)
 	}
 	// Garage answers 500 for this.
 	if !slices.Contains(bucketInfo.GlobalAliases, alias) {

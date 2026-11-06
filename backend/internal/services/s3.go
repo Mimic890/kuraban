@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -145,6 +146,13 @@ func (s *S3Service) getBucketCredentials(ctx context.Context, bucketName string,
 		}
 		keyDetails, err := s.adminService.GetKeyInfo(ctx, keyInfo.AccessKeyID, true)
 		if err != nil || keyDetails.SecretAccessKey == nil {
+			continue
+		}
+		// Garage looks up a key's local aliases before global ones, so through this key
+		// the name would reach another bucket and every operation would land there.
+		if slices.ContainsFunc(keyDetails.Buckets, func(b models.KeyBucketInfo) bool {
+			return b.ID != bucketInfo.ID && slices.Contains(b.LocalAliases, bucketName)
+		}) {
 			continue
 		}
 		creds := credentials.NewStaticV4(keyDetails.AccessKeyID, *keyDetails.SecretAccessKey, "")

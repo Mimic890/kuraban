@@ -35,6 +35,8 @@ type AdminService interface {
 	CleanupIncompleteUploads(ctx context.Context, bucketID string, olderThanSecs int64) (int64, error)
 	AddBucketAlias(ctx context.Context, bucketID, alias string) (*models.GarageBucketInfo, error)
 	RemoveBucketAlias(ctx context.Context, bucketID, alias string) (*models.GarageBucketInfo, error)
+	AddBucketLocalAlias(ctx context.Context, bucketID, accessKeyID, alias string) (*models.GarageBucketInfo, error)
+	RemoveBucketLocalAlias(ctx context.Context, bucketID, accessKeyID, alias string) (*models.GarageBucketInfo, error)
 	ListWorkers(ctx context.Context) (*models.MultiNodeResponse, error)
 	ListBlockErrors(ctx context.Context) (*models.MultiNodeResponse, error)
 	GetBlockInfo(ctx context.Context, nodeID, blockHash string) (*models.MultiNodeResponse, error)

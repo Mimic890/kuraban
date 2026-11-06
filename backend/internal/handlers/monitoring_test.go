@@ -219,7 +219,7 @@ func TestMonitoring_GetDashboardMetrics_UsesBatch(t *testing.T) {
 	app, admin := newMonitoringTestApp(t)
 	admin.ListBucketsInfoFn = func(_ context.Context) ([]models.GarageBucketInfo, error) {
 		return []models.GarageBucketInfo{
-			{ID: "1", GlobalAliases: []string{"alpha"}, Bytes: 300, Objects: 3},
+			{ID: "1", GlobalAliases: []string{"alpha"}, Bytes: 300, Objects: 3, Keys: []models.BucketKeyInfo{{BucketLocalAliases: []string{"a-local"}}}},
 			{ID: "2", Bytes: 100, Objects: 1, Keys: []models.BucketKeyInfo{{BucketLocalAliases: []string{"local-only"}}}},
 		}, nil
 	}

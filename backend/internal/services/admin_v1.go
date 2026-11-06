@@ -234,6 +234,14 @@ func (s *GarageV1AdminService) RemoveBucketAlias(ctx context.Context, bucketID, 
 	return nil, ErrUnsupported
 }
 
+func (s *GarageV1AdminService) AddBucketLocalAlias(ctx context.Context, bucketID, accessKeyID, alias string) (*models.GarageBucketInfo, error) {
+	return nil, ErrUnsupported
+}
+
+func (s *GarageV1AdminService) RemoveBucketLocalAlias(ctx context.Context, bucketID, accessKeyID, alias string) (*models.GarageBucketInfo, error) {
+	return nil, ErrUnsupported
+}
+
 // The v1 admin API has no such endpoint.
 func (s *GarageV1AdminService) CleanupIncompleteUploads(ctx context.Context, bucketID string, olderThanSecs int64) (int64, error) {
 	return 0, ErrUnsupported

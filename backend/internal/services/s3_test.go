@@ -488,3 +488,42 @@ func TestGetBucketCredentials_BucketNotFound_ReturnsError(t *testing.T) {
 		t.Errorf("expected a clear 'bucket ... not found or was removed' error, got %v", err)
 	}
 }
+
+// Through a key with a local alias of this name on another bucket, Garage would serve that bucket.
+func TestGetBucketCredentials_SkipsKeyWhoseLocalAliasShadowsTheName(t *testing.T) {
+	bucket := uniqueBucket(t)
+	rw := models.BucketKeyPermission{Read: true, Write: true}
+	secret := "good-secret"
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/GetBucketInfo", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(&models.GarageBucketInfo{
+			ID:   "bid",
+			Keys: []models.BucketKeyInfo{{AccessKeyID: "SHADOW", Permissions: rw}, {AccessKeyID: "OWN", Permissions: rw}},
+		})
+	})
+	mux.HandleFunc("/v2/GetKeyInfo", func(w http.ResponseWriter, r *http.Request) {
+		info := models.GarageKeyInfo{AccessKeyID: r.URL.Query().Get("id"), SecretAccessKey: &secret}
+		switch info.AccessKeyID {
+		case "SHADOW":
+			info.Buckets = []models.KeyBucketInfo{{ID: "other", LocalAliases: []string{bucket}}}
+		case "OWN": // A local alias of this very bucket reaches the right place.
+			info.Buckets = []models.KeyBucketInfo{{ID: "bid", LocalAliases: []string{bucket}}}
+		}
+		_ = json.NewEncoder(w).Encode(&info)
+	})
+	s3, _ := adminBackedS3(t, mux)
+
+	creds, err := s3.getBucketCredentials(context.Background(), bucket, OpRead|OpWrite)
+	if err != nil {
+		t.Fatalf("getBucketCredentials: %v", err)
+	}
+	v, err := creds.GetWithContext(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.AccessKeyID != "OWN" {
+		t.Errorf("key = %q, want OWN", v.AccessKeyID)
+	}
+}
+

@@ -75,9 +75,11 @@ type CleanupUploadsResponse struct {
 	UploadsDeleted int64 `json:"uploadsDeleted"`
 }
 
-// AddBucketAliasRequest names the new global alias.
+// AddBucketAliasRequest names the new alias. With AccessKeyID it is a local alias,
+// which only that key can use.
 type AddBucketAliasRequest struct {
-	Alias string `json:"alias"`
+	Alias       string `json:"alias"`
+	AccessKeyID string `json:"accessKeyId,omitempty"`
 }
 
 // BucketAliasesResponse reports the aliases after a change. Name, the first of them,

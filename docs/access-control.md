@@ -166,7 +166,7 @@ Dangerous operations (`cluster.layout.apply`, `cluster.layout.skip_dead_nodes`, 
 
 `cluster.layout.update` only prepares changes and can discard ones prepared by others. No data moves until someone with `cluster.layout.apply` applies them.
 
-Adding or removing an alias needs its permission on both the bucket and the alias, because team access follows bucket names. Kuraban calls a bucket by the first of its global aliases in alphabetical order, so an alias that sorts first also moves the bucket under that name's prefix.
+Adding or removing an alias needs its permission on both the bucket and the alias, because team access follows bucket names. Kuraban calls a bucket by the first of its global aliases in alphabetical order, so an alias that sorts first also moves the bucket under that name's prefix. Local aliases follow the same rule, and only a key that already appears on the bucket can get one. Seeing which key holds a local alias, and adding one from the UI, also takes `bucket.read` on the bucket.
 
 One endpoint needs two permissions: `POST /api/v1/buckets/:name/permissions` performs an allow and a deny in a single call, so it requires both `permission.allow_bucket_key` and `permission.deny_bucket_key`. One of the two alone is not enough.
 

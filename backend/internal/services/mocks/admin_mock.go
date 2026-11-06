@@ -47,6 +47,8 @@ type AdminMock struct {
 	CleanupUploadsFn              func(ctx context.Context, bucketID string, olderThanSecs int64) (int64, error)
 	AddBucketAliasFn              func(ctx context.Context, bucketID, alias string) (*models.GarageBucketInfo, error)
 	RemoveBucketAliasFn           func(ctx context.Context, bucketID, alias string) (*models.GarageBucketInfo, error)
+	AddBucketLocalAliasFn         func(ctx context.Context, bucketID, accessKeyID, alias string) (*models.GarageBucketInfo, error)
+	RemoveBucketLocalAliasFn      func(ctx context.Context, bucketID, accessKeyID, alias string) (*models.GarageBucketInfo, error)
 	ListWorkersFn                 func(ctx context.Context) (*models.MultiNodeResponse, error)
 	ListBlockErrorsFn             func(ctx context.Context) (*models.MultiNodeResponse, error)
 	GetBlockInfoFn                func(ctx context.Context, nodeID, blockHash string) (*models.MultiNodeResponse, error)
@@ -217,6 +219,22 @@ func (m *AdminMock) RemoveBucketAlias(ctx context.Context, bucketID, alias strin
 		return nil, errNotConfigured("RemoveBucketAlias")
 	}
 	return m.RemoveBucketAliasFn(ctx, bucketID, alias)
+}
+
+func (m *AdminMock) AddBucketLocalAlias(ctx context.Context, bucketID, accessKeyID, alias string) (*models.GarageBucketInfo, error) {
+	m.record("AddBucketLocalAlias", bucketID, accessKeyID, alias)
+	if m.AddBucketLocalAliasFn == nil {
+		return nil, errNotConfigured("AddBucketLocalAlias")
+	}
+	return m.AddBucketLocalAliasFn(ctx, bucketID, accessKeyID, alias)
+}
+
+func (m *AdminMock) RemoveBucketLocalAlias(ctx context.Context, bucketID, accessKeyID, alias string) (*models.GarageBucketInfo, error) {
+	m.record("RemoveBucketLocalAlias", bucketID, accessKeyID, alias)
+	if m.RemoveBucketLocalAliasFn == nil {
+		return nil, errNotConfigured("RemoveBucketLocalAlias")
+	}
+	return m.RemoveBucketLocalAliasFn(ctx, bucketID, accessKeyID, alias)
 }
 
 func (m *AdminMock) GetClusterLayout(ctx context.Context) (json.RawMessage, error) {

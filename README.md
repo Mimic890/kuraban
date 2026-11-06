@@ -11,7 +11,7 @@
 
 ## Features
 
-- **Buckets and objects.** Create and configure buckets, set quotas and website hosting, browse objects with prefix and recursive search, upload with drag and drop, preview, download and bulk-delete files and folders.
+- **Buckets and objects.** Create and configure buckets, set quotas, website hosting, and global and local aliases, browse objects with prefix and recursive search, upload with drag and drop, preview, download and bulk-delete files and folders.
 - **Access keys.** Create keys, edit a key's read, write and owner permissions across all buckets in one table, reveal secrets.
 - **Cluster.** Node status, health, per-node statistics. Layout management: assign zones and capacity, preview the result, apply or discard, follow a migration and skip dead nodes.
 - **Dashboard.** S3 traffic, latency percentiles, error rates, storage growth, disk usage, block I/O, resync and RPC metrics. History is stored in a local SQLite database with automatic 5-minute and hourly rollups.
@@ -78,13 +78,9 @@ The S3, block and RPC charts read Garage's `/metrics` endpoint using the cluster
 - [Architecture](ARCHITECTURE.md)
 - [Contributing and development setup](CONTRIBUTING.md)
 
-## TODO
+## Not planned
 
-Garage admin API v2.5.0 features and fixes still missing from the UI:
-
-- [ ] Local bucket aliases: add/remove. Global ones are done, local ones are only shown.
-
-Not planned: Garage admin tokens (Kuraban itself runs on one), `PurgeBlocks` (irreversible data loss), `ImportKey`, `InspectObject`, worker variables. Per-key/per-bucket request stats are not possible: Garage metrics only carry `api_endpoint`.
+Garage admin tokens (Kuraban itself runs on one), `PurgeBlocks` (irreversible data loss), `ImportKey`, `InspectObject`, worker variables. Per-key/per-bucket request stats are not possible: Garage metrics only carry `api_endpoint`.
 
 ## License
 

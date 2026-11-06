@@ -912,7 +912,97 @@ func TestAliasRoutes_AliasMustBeInTheTeamsScope(t *testing.T) {
 	if resp := aliasRequest(t, app, http.MethodPost, "/buckets/backend-api/aliases", `{"alias":"frontend-new"}`); resp.StatusCode != http.StatusForbidden {
 		t.Errorf("add: status = %d", resp.StatusCode)
 	}
+	if resp := aliasRequest(t, app, http.MethodPost, "/buckets/backend-api/aliases", `{"alias":"frontend-new","accessKeyId":"GK1"}`); resp.StatusCode != http.StatusForbidden {
+		t.Errorf("add local: status = %d", resp.StatusCode)
+	}
+	if resp := aliasRequest(t, app, http.MethodDelete, "/buckets/backend-api/aliases/frontend-api?accessKeyId=GK1", ""); resp.StatusCode != http.StatusForbidden {
+		t.Errorf("remove local: status = %d", resp.StatusCode)
+	}
 	if resp := aliasRequest(t, app, http.MethodDelete, "/buckets/backend-api/aliases/frontend-api", ""); resp.StatusCode != http.StatusForbidden {
 		t.Errorf("remove: status = %d", resp.StatusCode)
+	}
+}
+
+func TestAddLocalAlias_RefusesWithoutReachingGarage(t *testing.T) {
+	app, admin := newBucketsTestApp(t)
+	admin.GetBucketInfoByAliasFn = func(_ context.Context, alias string) (*models.GarageBucketInfo, error) {
+		switch alias {
+		case "photos":
+			return &models.GarageBucketInfo{ID: "id-1", Keys: []models.BucketKeyInfo{{AccessKeyID: "GK1"}}}, nil
+		case "videos":
+			return &models.GarageBucketInfo{ID: "id-2"}, nil
+		}
+		return nil, nil
+	}
+	admin.AddBucketLocalAliasFn = func(context.Context, string, string, string) (*models.GarageBucketInfo, error) {
+		t.Error("reached Garage")
+		return nil, nil
+	}
+	for name, body := range map[string]string{
+		"key without access":    `{"alias":"short","accessKeyId":"GK2"}`,
+		"another bucket's name": `{"alias":"videos","accessKeyId":"GK1"}`,
+	} {
+		if resp := aliasRequest(t, app, http.MethodPost, "/buckets/photos/aliases", body); resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("%s: status = %d", name, resp.StatusCode)
+		}
+	}
+}
+
+func TestAddLocalAlias_KeepsTheBucketName(t *testing.T) {
+	app, admin := newBucketsTestApp(t)
+	info := &models.GarageBucketInfo{ID: "id-1", GlobalAliases: []string{"photos"}, Keys: []models.BucketKeyInfo{{AccessKeyID: "GK1"}}}
+	admin.GetBucketInfoByAliasFn = func(_ context.Context, alias string) (*models.GarageBucketInfo, error) {
+		// A key may call the bucket by a name it already has.
+		if alias == "photos" {
+			return info, nil
+		}
+		return nil, nil
+	}
+	var added []string
+	admin.AddBucketLocalAliasFn = func(_ context.Context, id, key, alias string) (*models.GarageBucketInfo, error) {
+		added = append(added, id+"/"+key+"/"+alias)
+		return info, nil
+	}
+	for _, alias := range []string{"short", "photos"} {
+		resp := aliasRequest(t, app, http.MethodPost, "/buckets/photos/aliases", `{"alias":"`+alias+`","accessKeyId":"GK1"}`)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("%s: status = %d", alias, resp.StatusCode)
+		}
+		var body struct {
+			Data models.BucketAliasesResponse `json:"data"`
+		}
+		decodeJSON(t, resp.Body, &body)
+		if body.Data.Name != "photos" {
+			t.Errorf("name = %q", body.Data.Name)
+		}
+	}
+	if len(added) != 2 || added[0] != "id-1/GK1/short" || added[1] != "id-1/GK1/photos" {
+		t.Errorf("added = %v", added)
+	}
+}
+
+func TestRemoveLocalAlias(t *testing.T) {
+	app, admin := newBucketsTestApp(t)
+	admin.GetBucketInfoByAliasFn = func(context.Context, string) (*models.GarageBucketInfo, error) {
+		// One global alias: the last-global-alias rule must not apply to a local one.
+		return &models.GarageBucketInfo{
+			ID: "id-1", GlobalAliases: []string{"photos"},
+			Keys: []models.BucketKeyInfo{{AccessKeyID: "GK1", BucketLocalAliases: []string{"short"}}, {AccessKeyID: "GK2"}},
+		}, nil
+	}
+	var removed []string
+	admin.RemoveBucketLocalAliasFn = func(_ context.Context, id, key, alias string) (*models.GarageBucketInfo, error) {
+		removed = append(removed, id+"/"+key+"/"+alias)
+		return &models.GarageBucketInfo{ID: id, GlobalAliases: []string{"photos"}}, nil
+	}
+
+	if resp := aliasRequest(t, app, http.MethodDelete, "/buckets/photos/aliases/short?accessKeyId=GK2", ""); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("another key: status = %d", resp.StatusCode)
+	}
+	if resp := aliasRequest(t, app, http.MethodDelete, "/buckets/photos/aliases/short?accessKeyId=GK1", ""); resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d", resp.StatusCode)
+	}
+	if len(removed) != 1 || removed[0] != "id-1/GK1/short" {
+		t.Errorf("removed = %v", removed)
 	}
 }

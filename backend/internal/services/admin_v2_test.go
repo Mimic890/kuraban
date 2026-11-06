@@ -974,3 +974,34 @@ func TestListInfo_DecodesPages(t *testing.T) {
 		t.Errorf("keys: %d, err %v", len(keys), err)
 	}
 }
+
+func TestBucketLocalAlias_SendsTheKeyAndLocalAlias(t *testing.T) {
+	for _, tc := range []struct {
+		path string
+		fn   func(s *GarageV2AdminService) (*models.GarageBucketInfo, error)
+	}{
+		{"/v2/AddBucketAlias", func(s *GarageV2AdminService) (*models.GarageBucketInfo, error) {
+			return s.AddBucketLocalAlias(context.Background(), "B", "GK1", "short")
+		}},
+		{"/v2/RemoveBucketAlias", func(s *GarageV2AdminService) (*models.GarageBucketInfo, error) {
+			return s.RemoveBucketLocalAlias(context.Background(), "B", "GK1", "short")
+		}},
+	} {
+		h, rec := recordingHandler(t, http.StatusOK, &models.GarageBucketInfo{ID: "B"})
+		svc, _ := newAdminTestServer(t, h)
+		if _, err := tc.fn(svc); err != nil {
+			t.Fatalf("%s: %v", tc.path, err)
+		}
+		if rec.path != tc.path {
+			t.Errorf("path = %s, want %s", rec.path, tc.path)
+		}
+		var body map[string]string
+		if err := json.Unmarshal(rec.body, &body); err != nil {
+			t.Fatal(err)
+		}
+		if body["bucketId"] != "B" || body["accessKeyId"] != "GK1" || body["localAlias"] != "short" || body["globalAlias"] != "" {
+			t.Errorf("%s: body = %v", tc.path, body)
+		}
+	}
+}
+

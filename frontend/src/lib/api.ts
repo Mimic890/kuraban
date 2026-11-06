@@ -301,7 +301,7 @@ export const bucketsApi = {
   },
 
   get: async (name: string): Promise<BucketDetails> => {
-    const response = await api.get(`/v1/buckets/${name}`);
+    const response = await api.get(`/v1/buckets/${encodeURIComponent(name)}`);
     return response.data.data;
   },
 
@@ -358,19 +358,20 @@ export const bucketsApi = {
     return response.data.data;
   },
 
-  addAlias: async (name: string, alias: string) => {
+  /** With accessKeyId the alias is local: only that key can use it. */
+  addAlias: async (name: string, alias: string, accessKeyId?: string) => {
     const response = await api.post<ApiResponse<{ name: string }>>(
       `/v1/buckets/${encodeURIComponent(name)}/aliases`,
-      { alias },
+      { alias, accessKeyId },
       { silent: true }
     );
     return response.data.data!;
   },
 
-  removeAlias: async (name: string, alias: string) => {
+  removeAlias: async (name: string, alias: string, accessKeyId?: string) => {
     const response = await api.delete<ApiResponse<{ name: string }>>(
       `/v1/buckets/${encodeURIComponent(name)}/aliases/${encodeURIComponent(alias)}`,
-      { silent: true }
+      { params: { accessKeyId }, silent: true }
     );
     return response.data.data!;
   },
