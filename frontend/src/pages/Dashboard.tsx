@@ -26,6 +26,7 @@ import {
   type DashboardCtx,
   type Tone,
 } from '@/components/dashboard/panels';
+import { ErrorRateStat } from '@/components/dashboard/error-rate-stat';
 import { RefreshPicker, TimeRangePicker } from '@/components/dashboard/time-controls';
 import { DashboardBoard } from '@/components/dashboard/board';
 import { QueryBatchProvider } from '@/components/dashboard/batch';
@@ -36,7 +37,6 @@ import type { ClusterNode } from '@/types';
 // Query keys derived from them) stay stable across renders.
 const Q = {
   s3Rate: { id: 's3', metric: 's3.requests', fn: 'rate' } as MetricQuery,
-  errorPct: { id: 'err', metric: 's3.errors', fn: 'ratio', denominator: 's3.requests', scale: 100 } as MetricQuery,
   p95: { id: 'p95', metric: 's3.latency', match: { quantile: 'p95' }, scale: 1000 } as MetricQuery,
   storageBytes: { id: 'bytes', metric: 'storage.bytes', fn: 'last' } as MetricQuery,
   storageObjects: { id: 'objects', metric: 'storage.objects', fn: 'last' } as MetricQuery,
@@ -248,7 +248,6 @@ export function Dashboard() {
   const number = new Intl.NumberFormat(language);
 
   const diskTone = (v: number | null): Tone => (v === null ? 'neutral' : v >= thresholds.disk_crit_pct ? 'crit' : v >= thresholds.disk_warn_pct ? 'warn' : 'ok');
-  const errTone = (v: number | null): Tone => (v === null ? 'neutral' : v >= thresholds.error_rate_warn_pct ? 'crit' : v > 0 ? 'warn' : 'ok');
   const latTone = (v: number | null): Tone => (v === null ? 'neutral' : v >= thresholds.latency_warn_ms ? 'warn' : 'ok');
 
   const usage = metricsQ.data?.usageByBucket ?? [];
@@ -385,7 +384,7 @@ export function Dashboard() {
                     <StatPanel title={t('dashboard.stat.requests')} unit="reqps" query={Q.s3Rate} tone={() => 'info'} sub={t('dashboard.stat.s3Sub')} />
                   ) },
                   { id: 'overview.errorRate', w: 2, h: 84, compact: true, minH: 50, title: t('dashboard.stat.errorRate'), render: () => (
-                    <StatPanel title={t('dashboard.stat.errorRate')} unit="percent" query={Q.errorPct} tone={errTone} sub={t('dashboard.stat.errorSub', { pct: thresholds.error_rate_warn_pct })} />
+                    <ErrorRateStat warnPct={thresholds.error_rate_warn_pct} />
                   ) },
                   { id: 'overview.p95', w: 2, h: 84, compact: true, minH: 50, title: t('dashboard.stat.p95'), render: () => (
                     <StatPanel title={t('dashboard.stat.p95')} unit="ms" query={Q.p95} tone={latTone} reduce="last" sub={t('dashboard.stat.latencySub', { ms: thresholds.latency_warn_ms })} />

@@ -52,7 +52,7 @@ export function usePanelHeight(fallback: number) {
  * Data for a panel: from the dashboard's shared batch request when there is
  * one, otherwise a request of its own. Inactive (hidden) panels fetch nothing.
  */
-function usePanelData(queries: MetricQuery[], enabled = true): PanelData {
+export function usePanelData(queries: MetricQuery[], enabled = true): PanelData {
   const { range, refetchInterval } = useDashboard();
   const inactive = !!React.useContext(PanelSlotContext)?.inactive;
   const batched = useBatchedRange(queries, enabled && !inactive);
