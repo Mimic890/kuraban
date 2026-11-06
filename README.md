@@ -23,6 +23,8 @@
 
 Garage admin API v1 and v2 are both supported. Some cluster statistics are only available on v2.
 
+Garage 2.5.0 or newer is recommended. Older versions work, but without its batch requests lists and metrics ask about each bucket and key separately, which gets slow at around a thousand of them.
+
 ## Quick start
 
 Requirements: Docker with Compose v2 and a running Garage cluster. To set up a local Garage for testing, see [docs/garage-setup.md](docs/garage-setup.md).

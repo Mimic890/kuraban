@@ -40,7 +40,7 @@ openssl rand -hex 32   # admin_token
 ```yaml
 services:
   garage:
-    image: dxflrs/garage:v2.1.0
+    image: dxflrs/garage:v2.5.0
     restart: unless-stopped
     volumes:
       - ./garage.toml:/etc/garage.toml:ro
