@@ -5,6 +5,8 @@ import { toast } from 'sonner';
 import { CheckCircle2, Loader2, Pencil, Plug, Plus, RefreshCw, Server, ShieldPlus, Trash2, XCircle } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { IconTile } from '@/components/ui/icon-tile';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -27,8 +29,9 @@ const EMPTY_DRAFT: ClusterDraft = {
   force_path_style: true,
 };
 
-// The add form survives reloads and navigation. The admin token is left out on
-// purpose: secrets never go to web storage.
+// The add form's draft survives reloads and navigation, and closing the dialog
+// with Esc or a stray overlay click; only Cancel discards it. The admin token is
+// left out on purpose: secrets never go to web storage.
 const DRAFT_KEY = 'connections-add-draft';
 
 function loadDraft(): ClusterDraft {
@@ -221,59 +224,63 @@ function ClusterForm({ cluster, onClose }: { cluster?: ClusterConfig; onClose: (
   };
 
   return (
-    <Card className="border-[var(--primary)]/50">
-      <CardHeader>
-        <CardTitle>{editing ? t('connections.edit_title', { name: cluster.name }) : t('connections.add_new')}</CardTitle>
-        <CardDescription>{editing ? t('connections.edit_desc') : t('connections.add_desc')}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={submit} className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Field label={t('connections.name')}>
-              <Input required value={draft.name} onChange={(e) => set('name', e.target.value)} placeholder={t('connections.name_placeholder')} />
-            </Field>
-            <Field label={t('connections.region')} hint={t('connections.region_hint')}>
-              <Input required value={draft.region} onChange={(e) => set('region', e.target.value)} placeholder="garage" />
-            </Field>
-            <Field label={t('connections.s3_endpoint')} hint={t('connections.s3_hint')}>
-              <Input required value={draft.endpoint} onChange={(e) => set('endpoint', e.target.value)} placeholder="http://garage:3900" />
-            </Field>
-            <Field label={t('connections.admin_endpoint')} hint={t('connections.admin_hint')}>
-              <Input required value={draft.admin_endpoint} onChange={(e) => set('admin_endpoint', e.target.value)} placeholder="http://garage:3903" />
-            </Field>
-            <Field
-              label={t('connections.admin_token')}
-              hint={editing ? t('connections.token_keep') : t('connections.token_hint')}
-              className="md:col-span-2"
-            >
-              <Input
-                required={!editing}
-                type="password"
-                autoComplete="off"
-                value={draft.admin_token}
-                onChange={(e) => set('admin_token', e.target.value)}
-                placeholder={editing ? '••••••••' : 'admin_token'}
-              />
-            </Field>
+    <Dialog open onOpenChange={(open) => !open && onClose()} size="form">
+      <DialogContent>
+        <DialogHeader>
+          <IconTile icon={<Server />} tone="primary" size="md" />
+          <div className="min-w-0 flex-1 pr-6">
+            <DialogTitle>{editing ? t('connections.edit_title', { name: cluster.name }) : t('connections.add_new')}</DialogTitle>
+            <DialogDescription>{editing ? t('connections.edit_desc') : t('connections.add_desc')}</DialogDescription>
           </div>
-
-          <div className="flex flex-wrap gap-x-6 gap-y-3">
-            <div className="flex items-center gap-2 text-[0.8125rem]">
-              <Switch checked={hasScheme ? /^https/i.test(draft.endpoint.trim()) : draft.use_ssl} disabled={hasScheme} onCheckedChange={(v) => set('use_ssl', v)} />
-              <span>{t('connections.use_ssl')}</span>
-              {hasScheme && <span className="text-[0.6875rem] text-[var(--muted-foreground)]">{t('connections.use_ssl_from_url')}</span>}
+        </DialogHeader>
+        <form onSubmit={submit} className="contents">
+          <DialogBody className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Field label={t('connections.name')}>
+                <Input required value={draft.name} onChange={(e) => set('name', e.target.value)} placeholder={t('connections.name_placeholder')} />
+              </Field>
+              <Field label={t('connections.region')} hint={t('connections.region_hint')}>
+                <Input required value={draft.region} onChange={(e) => set('region', e.target.value)} placeholder="garage" />
+              </Field>
+              <Field label={t('connections.s3_endpoint')} hint={t('connections.s3_hint')}>
+                <Input required value={draft.endpoint} onChange={(e) => set('endpoint', e.target.value)} placeholder="http://garage:3900" />
+              </Field>
+              <Field label={t('connections.admin_endpoint')} hint={t('connections.admin_hint')}>
+                <Input required value={draft.admin_endpoint} onChange={(e) => set('admin_endpoint', e.target.value)} placeholder="http://garage:3903" />
+              </Field>
+              <Field
+                label={t('connections.admin_token')}
+                hint={editing ? t('connections.token_keep') : t('connections.token_hint')}
+                className="md:col-span-2"
+              >
+                <Input
+                  required={!editing}
+                  type="password"
+                  autoComplete="off"
+                  value={draft.admin_token}
+                  onChange={(e) => set('admin_token', e.target.value)}
+                  placeholder={editing ? '••••••••' : 'admin_token'}
+                />
+              </Field>
             </div>
-            <div className="flex items-center gap-2 text-[0.8125rem]">
-              <Switch checked={draft.force_path_style} onCheckedChange={(v) => set('force_path_style', v)} />
-              <span>{t('connections.path_style')}</span>
+
+            <div className="flex flex-wrap gap-x-6 gap-y-3">
+              <div className="flex items-center gap-2 text-[0.8125rem]">
+                <Switch checked={hasScheme ? /^https/i.test(draft.endpoint.trim()) : draft.use_ssl} disabled={hasScheme} onCheckedChange={(v) => set('use_ssl', v)} />
+                <span>{t('connections.use_ssl')}</span>
+                {hasScheme && <span className="text-[0.6875rem] text-[var(--muted-foreground)]">{t('connections.use_ssl_from_url')}</span>}
+              </div>
+              <div className="flex items-center gap-2 text-[0.8125rem]">
+                <Switch checked={draft.force_path_style} onCheckedChange={(v) => set('force_path_style', v)} />
+                <span>{t('connections.path_style')}</span>
+              </div>
             </div>
-          </div>
 
-          {error && <BlockedNotice message={error.message} blocked={error.blocked} onAllowed={runTest} />}
-          {result && <CheckResult result={result} />}
-
-          <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
-            {!editing && <span className="mr-auto text-[0.6875rem] text-[var(--muted-foreground)]">{t('connections.save_unreachable')}</span>}
+            {error && <BlockedNotice message={error.message} blocked={error.blocked} onAllowed={runTest} />}
+            {result && <CheckResult result={result} />}
+            {!editing && <p className="text-[0.6875rem] text-[var(--muted-foreground)]">{t('connections.save_unreachable')}</p>}
+          </DialogBody>
+          <DialogFooter className="flex-wrap">
             <Button type="button" variant="ghost" onClick={cancel}>
               {t('connections.cancel')}
             </Button>
@@ -285,10 +292,10 @@ function ClusterForm({ cluster, onClose }: { cluster?: ClusterConfig; onClose: (
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
               {editing ? t('connections.save_changes') : t('connections.save')}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
-      </CardContent>
-    </Card>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -330,14 +337,8 @@ export function Connections() {
   const { clusters, activeClusterId, setActiveCluster, deleteCluster } = useClusterStore();
   const { t } = useTranslation();
   const location = useLocation();
-  const [adding, setAdding] = React.useState(() => {
-    try {
-      return !!sessionStorage.getItem(DRAFT_KEY);
-    } catch {
-      return false;
-    }
-  });
-  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [adding, setAdding] = React.useState(false);
+  const [editing, setEditing] = React.useState<ClusterConfig | null>(null);
   const [removing, setRemoving] = React.useState<ClusterConfig | null>(null);
 
   React.useEffect(() => {
@@ -362,75 +363,65 @@ export function Connections() {
     <div>
       <PageHeader title={t('connections.title')} subtitle={t('connections.subtitle')} />
 
-      <div className="max-w-5xl space-y-6 p-6">
-        <div className="flex items-center justify-between">
+      <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold tracking-tight">{t('connections.connected')}</h2>
-          {!adding && (
-            <Button onClick={() => setAdding(true)} className="gap-2">
-              <Plus className="h-4 w-4" />
-              {t('connections.add')}
-            </Button>
-          )}
+          <Button onClick={() => setAdding(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            {t('connections.add')}
+          </Button>
         </div>
 
-        {adding && <ClusterForm onClose={() => setAdding(false)} />}
-
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {clusters.map((cluster) =>
-            editingId === cluster.id ? (
-              <div key={cluster.id} className="md:col-span-2">
-                <ClusterForm cluster={cluster} onClose={() => setEditingId(null)} />
-              </div>
-            ) : (
-              <Card key={cluster.id} className={activeClusterId === cluster.id ? 'ring-2 ring-[var(--primary)]' : ''}>
-                <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-                  <div className="min-w-0 space-y-1">
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <Server className="h-4 w-4 text-[var(--primary)]" />
-                      <span className="truncate">{cluster.name}</span>
-                      {activeClusterId === cluster.id && (
-                        <Badge variant="warning" className="gap-1">
-                          <CheckCircle2 className="h-3 w-3" /> {t('connections.active')}
-                        </Badge>
-                      )}
-                    </CardTitle>
-                    <CardDescription className="truncate font-mono text-[0.6875rem]">{cluster.id}</CardDescription>
-                  </div>
-                  <div className="-mr-2 flex shrink-0">
-                    <Button variant="ghost" size="icon" aria-label={t('connections.editAriaLabel', { name: cluster.name })} title={t('connections.edit')} onClick={() => setEditingId(cluster.id)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={t('connections.removeAriaLabel', { name: cluster.name })}
-                      className="text-[var(--destructive)] hover:bg-[var(--danger-soft)]"
-                      onClick={() => setRemoving(cluster)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3 pt-3">
-                  <ClusterStatus cluster={cluster} />
-                  <div className="grid grid-cols-[100px_1fr] gap-1 text-[0.8125rem]">
-                    <span className="text-[var(--muted-foreground)]">{t('connections.s3_url')}:</span>
-                    <span className="truncate font-medium">{s3Url(cluster)}</span>
-                    <span className="text-[var(--muted-foreground)]">{t('connections.admin_api')}:</span>
-                    <span className="truncate font-medium">{cluster.admin_endpoint}</span>
-                    <span className="text-[var(--muted-foreground)]">{t('connections.region')}:</span>
-                    <span className="font-medium">{cluster.region}</span>
-                  </div>
-                  {activeClusterId !== cluster.id && (
-                    <Button variant="secondary" className="mt-2 w-full" onClick={() => setActiveCluster(cluster.id)}>
-                      {t('connections.switch')}
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            )
-          )}
-          {clusters.length === 0 && !adding && (
+          {clusters.map((cluster) => (
+            <Card key={cluster.id} className={activeClusterId === cluster.id ? 'ring-2 ring-[var(--primary)]' : ''}>
+              <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+                <div className="min-w-0 space-y-1">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Server className="h-4 w-4 text-[var(--primary)]" />
+                    <span className="truncate">{cluster.name}</span>
+                    {activeClusterId === cluster.id && (
+                      <Badge variant="warning" className="gap-1">
+                        <CheckCircle2 className="h-3 w-3" /> {t('connections.active')}
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <CardDescription className="truncate font-mono text-[0.6875rem]">{cluster.id}</CardDescription>
+                </div>
+                <div className="-mr-2 flex shrink-0">
+                  <Button variant="ghost" size="icon" aria-label={t('connections.editAriaLabel', { name: cluster.name })} title={t('connections.edit')} onClick={() => setEditing(cluster)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={t('connections.removeAriaLabel', { name: cluster.name })}
+                    className="text-[var(--destructive)] hover:bg-[var(--danger-soft)]"
+                    onClick={() => setRemoving(cluster)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-3">
+                <ClusterStatus cluster={cluster} />
+                <div className="grid grid-cols-[100px_1fr] gap-1 text-[0.8125rem]">
+                  <span className="text-[var(--muted-foreground)]">{t('connections.s3_url')}:</span>
+                  <span className="truncate font-medium">{s3Url(cluster)}</span>
+                  <span className="text-[var(--muted-foreground)]">{t('connections.admin_api')}:</span>
+                  <span className="truncate font-medium">{cluster.admin_endpoint}</span>
+                  <span className="text-[var(--muted-foreground)]">{t('connections.region')}:</span>
+                  <span className="font-medium">{cluster.region}</span>
+                </div>
+                {activeClusterId !== cluster.id && (
+                  <Button variant="secondary" className="mt-2 w-full" onClick={() => setActiveCluster(cluster.id)}>
+                    {t('connections.switch')}
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+          {clusters.length === 0 && (
             <div className="col-span-full rounded-xl border border-dashed border-[var(--border)] py-12 text-center text-[var(--muted-foreground)]">
               <Server className="mx-auto mb-3 h-12 w-12 opacity-20" />
               <p>{t('connections.no_clusters')}</p>
@@ -441,6 +432,9 @@ export function Connections() {
           )}
         </div>
       </div>
+
+      {adding && <ClusterForm onClose={() => setAdding(false)} />}
+      {editing && <ClusterForm cluster={editing} onClose={() => setEditing(null)} />}
 
       <ConfirmDialog
         open={!!removing}
