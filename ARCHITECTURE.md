@@ -81,6 +81,8 @@ All API routes under `/api/v1` require auth (JWT bearer token or OIDC cookie). `
 | POST | `/api/v1/buckets/:name/permissions` | `buckets.GrantBucketPermission` | Grant/deny key perms (split allow+deny) |
 | PUT | `/api/v1/buckets/:name/website` | `buckets.UpdateBucketWebsite` | Website config |
 | PUT | `/api/v1/buckets/:name/quotas` | `buckets.UpdateBucketQuotas` | Max size / max objects |
+| POST | `/api/v1/buckets/:name/aliases` | `buckets.AddAlias` | Add a global alias (v2 only) |
+| DELETE | `/api/v1/buckets/:name/aliases/:alias` | `buckets.RemoveAlias` | Remove a global alias, never the last one (v2 only) |
 | POST | `/api/v1/buckets/:name/cleanup-uploads` | `buckets.CleanupUploads` | Abort unfinished uploads older than an age (at least 1 hour) |
 | GET | `/api/v1/buckets/:bucket/objects/` | `objects.ListObjects` | List objects (prefix, max_keys, continuation_token, search) |
 | POST | `/api/v1/buckets/:bucket/objects/` | `objects.UploadObject` | Single upload (multipart/form-data) |

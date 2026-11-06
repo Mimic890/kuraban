@@ -44,6 +44,8 @@ type AdminMock struct {
 	CreateBucketFn         func(ctx context.Context, req models.CreateBucketAdminRequest) (*models.GarageBucketInfo, error)
 	UpdateBucketFn         func(ctx context.Context, bucketID string, req models.UpdateBucketRequest) (*models.GarageBucketInfo, error)
 	CleanupUploadsFn       func(ctx context.Context, bucketID string, olderThanSecs int64) (int64, error)
+	AddBucketAliasFn       func(ctx context.Context, bucketID, alias string) (*models.GarageBucketInfo, error)
+	RemoveBucketAliasFn    func(ctx context.Context, bucketID, alias string) (*models.GarageBucketInfo, error)
 	ListWorkersFn          func(ctx context.Context) (*models.MultiNodeResponse, error)
 	ListBlockErrorsFn      func(ctx context.Context) (*models.MultiNodeResponse, error)
 	GetBlockInfoFn         func(ctx context.Context, nodeID, blockHash string) (*models.MultiNodeResponse, error)
@@ -191,6 +193,22 @@ func (m *AdminMock) CleanupIncompleteUploads(ctx context.Context, bucketID strin
 		return 0, errNotConfigured("CleanupIncompleteUploads")
 	}
 	return m.CleanupUploadsFn(ctx, bucketID, olderThanSecs)
+}
+
+func (m *AdminMock) AddBucketAlias(ctx context.Context, bucketID, alias string) (*models.GarageBucketInfo, error) {
+	m.record("AddBucketAlias", bucketID, alias)
+	if m.AddBucketAliasFn == nil {
+		return nil, errNotConfigured("AddBucketAlias")
+	}
+	return m.AddBucketAliasFn(ctx, bucketID, alias)
+}
+
+func (m *AdminMock) RemoveBucketAlias(ctx context.Context, bucketID, alias string) (*models.GarageBucketInfo, error) {
+	m.record("RemoveBucketAlias", bucketID, alias)
+	if m.RemoveBucketAliasFn == nil {
+		return nil, errNotConfigured("RemoveBucketAlias")
+	}
+	return m.RemoveBucketAliasFn(ctx, bucketID, alias)
 }
 
 func (m *AdminMock) ListWorkers(ctx context.Context) (*models.MultiNodeResponse, error) {

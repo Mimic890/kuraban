@@ -375,6 +375,42 @@ func TestRetryBlockResync_RequestBodies(t *testing.T) {
 	}
 }
 
+// After a removal the response no longer lists the alias, and a stale cache entry
+// would keep answering for that name.
+func TestRemoveBucketAlias_ForgetsTheRemovedName(t *testing.T) {
+	aliases := `["archive","photos"]`
+	lookups := 0
+	svc, _ := newAdminTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2/GetBucketInfo":
+			lookups++
+			_, _ = fmt.Fprintf(w, `{"id":"B","globalAliases":%s}`, aliases)
+		case "/v2/RemoveBucketAlias":
+			b, _ := io.ReadAll(r.Body)
+			if string(b) != `{"bucketId":"B","globalAlias":"archive"}` {
+				t.Errorf("body = %s", b)
+			}
+			aliases = `["photos"]`
+			_, _ = w.Write([]byte(`{"id":"B","globalAliases":["photos"]}`))
+		default:
+			t.Errorf("path = %s", r.URL.Path)
+		}
+	}))
+	ctx := context.Background()
+	if _, err := svc.GetBucketInfoByAlias(ctx, "archive"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.RemoveBucketAlias(ctx, "B", "archive"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.GetBucketInfoByAlias(ctx, "archive"); err != nil {
+		t.Fatal(err)
+	}
+	if lookups != 2 {
+		t.Errorf("lookups = %d, want a fresh one after the removal", lookups)
+	}
+}
+
 func TestDeleteBucket_PostWithIDQuery(t *testing.T) {
 	h, rec := recordingHandler(t, http.StatusOK, nil)
 	svc, _ := newAdminTestServer(t, h)

@@ -53,6 +53,10 @@ type BucketInfo struct {
 	WebsiteConfig *BucketWebsiteConfig `json:"websiteConfig,omitempty"`
 	Quotas        *BucketQuotas        `json:"quotas,omitempty"`
 
+	GlobalAliases []string `json:"globalAliases,omitempty"`
+	// Names only: which key holds a local alias is not for every team to see.
+	LocalAliases []string `json:"localAliases,omitempty"`
+
 	UnfinishedUploads     *int64 `json:"unfinishedUploads,omitempty"`
 	UnfinishedUploadBytes *int64 `json:"unfinishedUploadBytes,omitempty"`
 
@@ -69,6 +73,18 @@ type CleanupUploadsRequest struct {
 // CleanupUploadsResponse reports how many uploads were aborted.
 type CleanupUploadsResponse struct {
 	UploadsDeleted int64 `json:"uploadsDeleted"`
+}
+
+// AddBucketAliasRequest names the new global alias.
+type AddBucketAliasRequest struct {
+	Alias string `json:"alias"`
+}
+
+// BucketAliasesResponse reports the aliases after a change. Name, the first of them,
+// is what Kuraban calls the bucket from now on.
+type BucketAliasesResponse struct {
+	Name          string   `json:"name"`
+	GlobalAliases []string `json:"globalAliases"`
 }
 
 // RetryBlockResyncRequest names one block on one node, or asks for all of them.

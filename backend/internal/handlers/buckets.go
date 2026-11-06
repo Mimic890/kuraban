@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
+	"slices"
+	"strings"
 
 	"Mimic890/kuraban/internal/authz"
 	"Mimic890/kuraban/internal/models"
@@ -44,7 +47,15 @@ func (h *BucketHandler) ListBuckets(c fiber.Ctx) error {
 		if len(item.Bucket.GlobalAliases) == 0 {
 			continue
 		}
-		bucket := models.BucketInfo{ID: item.Bucket.ID, Name: item.Bucket.GlobalAliases[0], CreationDate: item.Bucket.Created}
+		bucket := models.BucketInfo{
+			ID:            item.Bucket.ID,
+			Name:          item.Bucket.GlobalAliases[0],
+			CreationDate:  item.Bucket.Created,
+			GlobalAliases: item.Bucket.GlobalAliases,
+		}
+		for _, local := range item.Bucket.LocalAliases {
+			bucket.LocalAliases = append(bucket.LocalAliases, local.Alias)
+		}
 		if item.Info != nil {
 			bucket.ObjectCount = &item.Info.Objects
 			bucket.Size = &item.Info.Bytes
@@ -67,6 +78,160 @@ func (h *BucketHandler) ListBuckets(c fiber.Ctx) error {
 	}
 
 	return c.JSON(models.SuccessResponse(response))
+}
+
+// garageRefusal returns Garage's own explanation when it answered 400, such as an
+// invalid name or an alias taken by another bucket.
+func garageRefusal(err error) (string, bool) {
+	_, body, found := strings.Cut(err.Error(), "API returned status 400: ")
+	if !found {
+		return "", false
+	}
+	var refusal struct {
+		Message string `json:"message"`
+	}
+	if json.Unmarshal([]byte(body), &refusal) != nil || refusal.Message == "" {
+		return "", false
+	}
+	return refusal.Message, true
+}
+
+func bucketAliasResult(c fiber.Ctx, info *models.GarageBucketInfo, err error) error {
+	if errors.Is(err, services.ErrUnsupported) {
+		return c.Status(fiber.StatusNotImplemented).JSON(
+			models.ErrorResponse(models.ErrCodeUnsupported, "This feature requires Garage v2.0+"),
+		)
+	}
+	if err != nil {
+		if message, ok := garageRefusal(err); ok {
+			return c.Status(fiber.StatusBadRequest).JSON(models.ErrorResponse(models.ErrCodeBadRequest, message))
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(
+			models.ErrorResponse(models.ErrCodeInternalError, "Failed to change bucket alias: "+err.Error()),
+		)
+	}
+	// Credentials are cached by bucket name, and a freed name can later point elsewhere.
+	services.ClearAllCredsCache()
+	if len(info.GlobalAliases) == 0 {
+		return c.Status(fiber.StatusInternalServerError).JSON(
+			models.ErrorResponse(models.ErrCodeInternalError, "The bucket has no global alias left"),
+		)
+	}
+	return c.JSON(models.SuccessResponse(models.BucketAliasesResponse{Name: info.GlobalAliases[0], GlobalAliases: info.GlobalAliases}))
+}
+
+// allowedOnAlias checks the alias itself, not only the bucket in the URL. Team access
+// follows bucket names, so an alias is a claim on a name: without this a team could
+// put its bucket under another team's prefix.
+func allowedOnAlias(c fiber.Ctx, perm, alias string) bool {
+	subj, ok := authz.SubjectFrom(c)
+	return !ok || authz.Decide(subj, perm, authz.Resource{Bucket: alias}).Allow
+}
+
+// AddAlias gives a bucket one more global alias
+//
+//	@Summary		Add a bucket alias
+//	@Description	Adds a global alias. Kuraban calls a bucket by the first of its aliases in alphabetical order, so a new alias can change that name. Requires Garage admin API v2.
+//	@Tags			Buckets
+//	@Accept			json
+//	@Produce		json
+//	@Param			name	path		string							true	"Bucket name"
+//	@Param			request	body		models.AddBucketAliasRequest	true	"The new alias"
+//	@Success		200		{object}	models.APIResponse{data=models.BucketAliasesResponse}
+//	@Failure		400		{object}	models.APIResponse{error=models.APIError}
+//	@Failure		403		{object}	models.APIResponse{error=models.APIError}
+//	@Failure		404		{object}	models.APIResponse{error=models.APIError}
+//	@Failure		500		{object}	models.APIResponse{error=models.APIError}
+//	@Failure		501		{object}	models.APIResponse{error=models.APIError}
+//	@Router			/api/v1/buckets/{name}/aliases [post]
+func (h *BucketHandler) AddAlias(c fiber.Ctx) error {
+	ctx := c.Context()
+
+	var req models.AddBucketAliasRequest
+	if err := c.Bind().JSON(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(
+			models.ErrorResponse(models.ErrCodeBadRequest, "Invalid request body: "+err.Error()),
+		)
+	}
+	if req.Alias == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(
+			models.ErrorResponse(models.ErrCodeBadRequest, "Alias is required"),
+		)
+	}
+	if !allowedOnAlias(c, authz.PermBucketAliasAdd, req.Alias) {
+		return c.Status(fiber.StatusForbidden).JSON(
+			models.ErrorResponse(models.ErrCodeForbidden, "Missing permission: "+authz.PermBucketAliasAdd+" on "+req.Alias),
+		)
+	}
+
+	bucketInfo, err := getAdminService(c).GetBucketInfoByAlias(ctx, c.Params("name"))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(
+			models.ErrorResponse(models.ErrCodeInternalError, "Failed to get bucket info: "+err.Error()),
+		)
+	}
+	if bucketInfo == nil {
+		return c.Status(fiber.StatusNotFound).JSON(
+			models.ErrorResponse(models.ErrCodeBucketNotFound, "Bucket does not exist"),
+		)
+	}
+
+	result, err := getAdminService(c).AddBucketAlias(ctx, bucketInfo.ID, req.Alias)
+	return bucketAliasResult(c, result, err)
+}
+
+// RemoveAlias removes a global alias from a bucket
+//
+//	@Summary		Remove a bucket alias
+//	@Description	Removes a global alias. The last one is refused even if local aliases remain, since the bucket would drop out of Kuraban. Requires Garage admin API v2.
+//	@Tags			Buckets
+//	@Produce		json
+//	@Param			name	path		string	true	"Bucket name"
+//	@Param			alias	path		string	true	"The alias to remove"
+//	@Success		200		{object}	models.APIResponse{data=models.BucketAliasesResponse}
+//	@Failure		400		{object}	models.APIResponse{error=models.APIError}
+//	@Failure		403		{object}	models.APIResponse{error=models.APIError}
+//	@Failure		404		{object}	models.APIResponse{error=models.APIError}
+//	@Failure		500		{object}	models.APIResponse{error=models.APIError}
+//	@Failure		501		{object}	models.APIResponse{error=models.APIError}
+//	@Router			/api/v1/buckets/{name}/aliases/{alias} [delete]
+func (h *BucketHandler) RemoveAlias(c fiber.Ctx) error {
+	ctx := c.Context()
+	alias := c.Params("alias")
+
+	if !allowedOnAlias(c, authz.PermBucketAliasRemove, alias) {
+		return c.Status(fiber.StatusForbidden).JSON(
+			models.ErrorResponse(models.ErrCodeForbidden, "Missing permission: "+authz.PermBucketAliasRemove+" on "+alias),
+		)
+	}
+
+	bucketInfo, err := getAdminService(c).GetBucketInfoByAlias(ctx, c.Params("name"))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(
+			models.ErrorResponse(models.ErrCodeInternalError, "Failed to get bucket info: "+err.Error()),
+		)
+	}
+	if bucketInfo == nil {
+		return c.Status(fiber.StatusNotFound).JSON(
+			models.ErrorResponse(models.ErrCodeBucketNotFound, "Bucket does not exist"),
+		)
+	}
+	// Garage answers 500 for this.
+	if !slices.Contains(bucketInfo.GlobalAliases, alias) {
+		return c.Status(fiber.StatusNotFound).JSON(
+			models.ErrorResponse(models.ErrCodeNotFound, "The bucket has no such alias"),
+		)
+	}
+	// Garage allows this when a local alias remains, but the bucket would then drop
+	// out of Kuraban, which can only address it by a global alias.
+	if len(bucketInfo.GlobalAliases) == 1 {
+		return c.Status(fiber.StatusBadRequest).JSON(
+			models.ErrorResponse(models.ErrCodeBadRequest, "This is the bucket's last global alias. Add another one first."),
+		)
+	}
+
+	result, err := getAdminService(c).RemoveBucketAlias(ctx, bucketInfo.ID, alias)
+	return bucketAliasResult(c, result, err)
 }
 
 // minCleanupAgeSecs keeps a cleanup away from uploads running right now: Garage

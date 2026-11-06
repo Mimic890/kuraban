@@ -225,6 +225,14 @@ func (s *GarageV1AdminService) GetClusterStatus(ctx context.Context) (*models.Cl
 	}, nil
 }
 
+func (s *GarageV1AdminService) AddBucketAlias(ctx context.Context, bucketID, alias string) (*models.GarageBucketInfo, error) {
+	return nil, ErrUnsupported
+}
+
+func (s *GarageV1AdminService) RemoveBucketAlias(ctx context.Context, bucketID, alias string) (*models.GarageBucketInfo, error) {
+	return nil, ErrUnsupported
+}
+
 // The v1 admin API has no such endpoint.
 func (s *GarageV1AdminService) CleanupIncompleteUploads(ctx context.Context, bucketID string, olderThanSecs int64) (int64, error) {
 	return 0, ErrUnsupported

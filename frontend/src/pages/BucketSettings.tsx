@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BucketHistory } from '@/components/buckets/BucketHistory';
-import { AlertTriangle, Eraser, Gauge, Info } from 'lucide-react';
+import { AlertTriangle, Eraser, Gauge, Info, Tags, Trash2 } from 'lucide-react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useBuckets, useCleanupBucketUploads, useDeleteBucket, useUpdateBucketQuotas } from '@/hooks/useApi';
+import { useBuckets, useBucketAliasChange, useCleanupBucketUploads, useDeleteBucket, useUpdateBucketQuotas } from '@/hooks/useApi';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { useBucketCan } from '@/hooks/usePermissions';
 import { Button } from '@/components/ui/button';
@@ -295,6 +295,8 @@ export function BucketSettings() {
         </form>
       </section>
 
+      {capabilities?.features.bucketAliases && <BucketAliases bucket={bucket} refreshing={isFetching} />}
+
       {capabilities?.features.cleanupUploads && canBucket(bucket, 'bucket.cleanup_uploads') && (
         <IncompleteUploads bucket={bucket} refreshing={isFetching} />
       )}
@@ -337,6 +339,114 @@ export function BucketSettings() {
         }}
       />
     </div>
+  );
+}
+
+function BucketAliases({ bucket, refreshing }: { bucket: Bucket; refreshing: boolean }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const canBucket = useBucketCan();
+  const change = useBucketAliasChange();
+  const [alias, setAlias] = useState('');
+  const [removing, setRemoving] = useState<string | null>(null);
+
+  const aliases = bucket.globalAliases ?? [bucket.name];
+  const newAlias = alias.trim();
+  // Garage lists aliases alphabetically and Kuraban calls the bucket by the first.
+  const becomesName = newAlias !== '' && newAlias < aliases[0];
+
+  const run = (kind: 'add' | 'remove', value: string, done?: () => void) =>
+    change.mutate(
+      { kind, bucketName: bucket.name, alias: value },
+      {
+        onSuccess: ({ name }) => {
+          done?.();
+          // The page's address is the bucket's name, which this change may have replaced.
+          if (name !== bucket.name) navigate(`/buckets/${encodeURIComponent(name)}/settings`, { replace: true });
+        },
+        onSettled: () => setRemoving(null),
+      }
+    );
+
+  return (
+    <section className="rounded-xl border border-[var(--border)] bg-[var(--card)]">
+      <header className="flex items-center gap-2 border-b border-[var(--border)] px-5 py-3">
+        <Tags className="h-4 w-4 text-[var(--primary)]" />
+        <h2 className="text-[0.9375rem] font-semibold">{t('buckets.settings.aliases.heading')}</h2>
+      </header>
+      <div className="space-y-4 px-5 py-5">
+        <p className="text-[0.8125rem] text-[var(--muted-foreground)]">{t('buckets.settings.aliases.description')}</p>
+        <ul className="divide-y divide-[var(--border)] rounded-lg border border-[var(--border)]">
+          {aliases.map((name, i) => (
+            <li key={name} className="flex min-h-11 items-center justify-between gap-3 px-3 py-1.5">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <span className="break-all font-mono text-[0.8438rem]">{name}</span>
+                {i === 0 && <Badge variant="primary">{t('buckets.settings.aliases.main')}</Badge>}
+              </div>
+              {aliases.length > 1 && canBucket(bucket, 'bucket_alias.remove') && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label={t('buckets.settings.aliases.remove_label', { alias: name })}
+                  disabled={refreshing || change.isPending}
+                  onClick={() => setRemoving(name)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+        {bucket.localAliases && bucket.localAliases.length > 0 && (
+          <p className="break-words text-[0.8125rem] text-[var(--muted-foreground)]">
+            {t('buckets.settings.aliases.local', { aliases: bucket.localAliases.join(', ') })}
+          </p>
+        )}
+        {canBucket(bucket, 'bucket_alias.add') && (
+          <form
+            className="space-y-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              run('add', newAlias, () => setAlias(''));
+            }}
+          >
+            <div className="flex flex-wrap items-center gap-3">
+              <Input
+                className="w-64 max-w-full font-mono"
+                value={alias}
+                onChange={(e) => setAlias(e.target.value)}
+                placeholder="new-alias"
+                aria-label={t('buckets.settings.aliases.new')}
+              />
+              <Button type="submit" variant="secondary" disabled={newAlias === '' || refreshing || change.isPending}>
+                {t('buckets.settings.aliases.add')}
+              </Button>
+            </div>
+            {becomesName && (
+              <p className="text-[0.8125rem] text-amber-600 dark:text-amber-400">
+                {t('buckets.settings.aliases.becomes_name', { alias: newAlias })}
+              </p>
+            )}
+          </form>
+        )}
+      </div>
+      <ConfirmDialog
+        open={removing !== null}
+        onOpenChange={(open) => !open && setRemoving(null)}
+        title={t('buckets.settings.aliases.remove_title', { alias: removing ?? '' })}
+        description={t('buckets.settings.aliases.remove_description')}
+        note={
+          removing === aliases[0]
+            ? t('buckets.settings.aliases.remove_main_note', { alias: aliases[1] ?? '' })
+            : t('buckets.settings.aliases.remove_note')
+        }
+        confirmLabel={t('buckets.settings.aliases.remove')}
+        loading={change.isPending}
+        onConfirm={() => {
+          if (removing) run('remove', removing);
+        }}
+      />
+    </section>
   );
 }
 

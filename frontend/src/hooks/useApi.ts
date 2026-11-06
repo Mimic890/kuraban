@@ -103,6 +103,25 @@ export function useUpdateBucketQuotas() {
   });
 }
 
+export function useBucketAliasChange() {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  return useMutation({
+    mutationFn: ({ kind, bucketName, alias }: { kind: 'add' | 'remove'; bucketName: string; alias: string }) =>
+      kind === 'add' ? bucketsApi.addAlias(bucketName, alias) : bucketsApi.removeAlias(bucketName, alias),
+    onSuccess: (_, { kind }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.buckets.all });
+      toast.success(t(kind === 'add' ? 'api.alias_added_success' : 'api.alias_removed_success'));
+    },
+    // Unlike most errors, the reason here is for the user to act on: a bad name, or one that is taken.
+    onError: (error: unknown) => {
+      const message = (error as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message;
+      toast.error(t('api.errors.generic'), { description: message ?? t('api.errors.unknown') });
+    },
+  });
+}
+
 export function useCleanupBucketUploads() {
   const queryClient = useQueryClient();
   const { t } = useTranslation();

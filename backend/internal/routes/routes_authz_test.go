@@ -265,6 +265,31 @@ func TestCleanupUploads_RequiresItsPermission(t *testing.T) {
 // TestPreviewTokenGrantsObjectGET exercises the full production chain: group
 // cascade AuthMiddleware accepts the token, ResolveSubject finds no user,
 // and Require allows via the preview claims instead of a subject.
+func TestAliasRoutes_RequireTheirPermissions(t *testing.T) {
+	f, token := newEnabledPolicyFixture(t)
+	refuse := func(context.Context, string, string) (*models.GarageBucketInfo, error) {
+		t.Error("alias changed without the permission")
+		return nil, nil
+	}
+	f.Admin.AddBucketAliasFn, f.Admin.RemoveBucketAliasFn = refuse, refuse
+	for _, r := range []struct{ method, path, body string }{
+		{"POST", "/api/v1/buckets/allowed-a/aliases", `{"alias":"allowed-b"}`},
+		{"DELETE", "/api/v1/buckets/allowed-a/aliases/allowed-b", ""},
+	} {
+		req := httptest.NewRequest(r.method, r.path, strings.NewReader(r.body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		resp, err := f.App.Test(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusForbidden {
+			t.Errorf("%s %s: status = %d, want 403", r.method, r.path, resp.StatusCode)
+		}
+	}
+}
+
 func TestWorkerAndBlockRoutes_RequirePermissions(t *testing.T) {
 	f, token := newEnabledPolicyFixture(t)
 	hash := strings.Repeat("a", 64)

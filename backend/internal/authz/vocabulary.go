@@ -34,6 +34,8 @@ const (
 	PermBucketUpdate      = "bucket.update"
 	PermBucketDelete      = "bucket.delete"
 	PermBucketCleanup     = "bucket.cleanup_uploads"
+	PermBucketAliasAdd    = "bucket_alias.add"
+	PermBucketAliasRemove = "bucket_alias.remove"
 	PermWorkerList        = "worker.list"
 	PermBlockListErrors   = "block.list_errors"
 	PermBlockInfo         = "block.info"

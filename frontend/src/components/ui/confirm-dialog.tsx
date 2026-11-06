@@ -18,6 +18,8 @@ interface ConfirmDialogProps {
   onOpenChange: (open: boolean) => void;
   title: string;
   description?: React.ReactNode;
+  /** Replaces the default "cannot be undone" line, for actions that can be. */
+  note?: string;
   confirmLabel?: string;
   cancelLabel?: string;
   icon?: React.ReactNode;
@@ -31,6 +33,7 @@ export function ConfirmDialog({
   onOpenChange,
   title,
   description,
+  note,
   confirmLabel,
   cancelLabel,
   icon,
@@ -51,7 +54,7 @@ export function ConfirmDialog({
           </div>
         </DialogHeader>
         <DialogBody>
-          <p className="text-[0.8438rem] text-[var(--muted-foreground)]">{t('common.confirm.irreversible')}</p>
+          <p className="text-[0.8438rem] text-[var(--muted-foreground)]">{note ?? t('common.confirm.irreversible')}</p>
         </DialogBody>
         <DialogFooter>
           <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={loading}>

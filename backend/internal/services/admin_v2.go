@@ -290,6 +290,35 @@ func (s *GarageV2AdminService) CleanupIncompleteUploads(ctx context.Context, buc
 	return result.UploadsDeleted, nil
 }
 
+// AddBucketAlias gives a bucket one more global alias.
+func (s *GarageV2AdminService) AddBucketAlias(ctx context.Context, bucketID, alias string) (*models.GarageBucketInfo, error) {
+	return s.changeBucketAlias(ctx, "AddBucketAlias", bucketID, alias)
+}
+
+// RemoveBucketAlias removes a global alias from a bucket.
+func (s *GarageV2AdminService) RemoveBucketAlias(ctx context.Context, bucketID, alias string) (*models.GarageBucketInfo, error) {
+	return s.changeBucketAlias(ctx, "RemoveBucketAlias", bucketID, alias)
+}
+
+func (s *GarageV2AdminService) changeBucketAlias(ctx context.Context, endpoint, bucketID, alias string) (*models.GarageBucketInfo, error) {
+	log := logpkg.FromCtx(ctx).With().
+		Str("component", "admin").
+		Str("operation", endpoint).
+		Str("bucket_id", bucketID).
+		Str("alias", alias).
+		Logger()
+
+	var result models.GarageBucketInfo
+	if err := s.http.request(ctx, http.MethodPost, "/v2/"+endpoint, map[string]string{"bucketId": bucketID, "globalAlias": alias}, &result); err != nil {
+		log.Error().Err(err).Str("outcome", "failure").Msg("garage bucket alias change failed")
+		return nil, err
+	}
+	log.Info().Str("outcome", "success").Msg("bucket alias changed")
+	// The response no longer lists a removed alias, but its cache entry must go too.
+	s.http.invalidateBucketInfo(result.ID, append(result.GlobalAliases, alias))
+	return &result, nil
+}
+
 // AllowBucketKey grants permissions for a key on a bucket.
 func (s *GarageV2AdminService) AllowBucketKey(ctx context.Context, req models.BucketKeyPermRequest) (*models.GarageBucketInfo, error) {
 	log := logpkg.FromCtx(ctx).With().

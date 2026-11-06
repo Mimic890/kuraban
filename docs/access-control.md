@@ -159,9 +159,11 @@ Permission names are lowercase and dot-separated: two segments, or three for `cl
 | `block.info` | global | | GetBlockInfo |
 | `block.retry_resync` | global | | RetryBlockResync |
 
-Some permissions have no UI route yet: `bucket.inspect_object`, `bucket_alias.*`, `cluster.layout.*`, `worker.info`, `worker.*_variable`, `cluster.connect_nodes`, `node.snapshot`, `node.repair`, and `key.import`. They're valid in config but don't gate anything in the UI so far. The vocabulary is complete up front so your config keeps working as the UI grows.
+Some permissions have no UI route yet: `bucket.inspect_object`, `cluster.layout.*`, `worker.info`, `worker.*_variable`, `cluster.connect_nodes`, `node.snapshot`, `node.repair`, and `key.import`. They're valid in config but don't gate anything in the UI so far. The vocabulary is complete up front so your config keeps working as the UI grows.
 
 Dangerous operations (`cluster.layout.apply`, `node.repair`, `worker.set_variable`) are separate, individually grantable permissions. They're never bundled into a read-only preset, so you can give a team cluster visibility without also giving it the power to break the cluster.
+
+Adding or removing an alias needs its permission on both the bucket and the alias, because team access follows bucket names. Kuraban calls a bucket by the first of its global aliases in alphabetical order, so an alias that sorts first also moves the bucket under that name's prefix.
 
 One endpoint needs two permissions: `POST /api/v1/buckets/:name/permissions` performs an allow and a deny in a single call, so it requires both `permission.allow_bucket_key` and `permission.deny_bucket_key`. One of the two alone is not enough.
 

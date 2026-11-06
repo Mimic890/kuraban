@@ -347,6 +347,23 @@ export const bucketsApi = {
     return response.data.data;
   },
 
+  addAlias: async (name: string, alias: string) => {
+    const response = await api.post<ApiResponse<{ name: string }>>(
+      `/v1/buckets/${encodeURIComponent(name)}/aliases`,
+      { alias },
+      { silent: true }
+    );
+    return response.data.data!;
+  },
+
+  removeAlias: async (name: string, alias: string) => {
+    const response = await api.delete<ApiResponse<{ name: string }>>(
+      `/v1/buckets/${encodeURIComponent(name)}/aliases/${encodeURIComponent(alias)}`,
+      { silent: true }
+    );
+    return response.data.data!;
+  },
+
   cleanupUploads: async (name: string, olderThanSecs: number) => {
     const response = await api.post<ApiResponse<{ uploadsDeleted: number }>>(
       `/v1/buckets/${encodeURIComponent(name)}/cleanup-uploads`,

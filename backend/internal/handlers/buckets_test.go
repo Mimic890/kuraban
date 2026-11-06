@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"Mimic890/kuraban/internal/authz"
 	"Mimic890/kuraban/internal/models"
 	"Mimic890/kuraban/internal/services"
 	"Mimic890/kuraban/internal/services/mocks"
@@ -33,6 +34,8 @@ func newBucketsTestApp(t *testing.T) (*fiber.App, *mocks.AdminMock) {
 	app.Put("/buckets/:name/website", h.UpdateBucketWebsite)
 	app.Put("/buckets/:name/quotas", h.UpdateBucketQuotas)
 	app.Post("/buckets/:name/cleanup-uploads", h.CleanupUploads)
+	app.Post("/buckets/:name/aliases", h.AddAlias)
+	app.Delete("/buckets/:name/aliases/:alias", h.RemoveAlias)
 	return app, admin
 }
 
@@ -758,5 +761,158 @@ func TestCleanupUploads_Failures(t *testing.T) {
 				t.Errorf("status = %d, want %d", resp.StatusCode, tc.want)
 			}
 		})
+	}
+}
+
+func aliasRequest(t *testing.T, app *fiber.App, method, path, body string) *http.Response {
+	t.Helper()
+	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	t.Cleanup(func() { resp.Body.Close() })
+	return resp
+}
+
+func bucketWithAliases(aliases ...string) func(context.Context, string) (*models.GarageBucketInfo, error) {
+	return func(context.Context, string) (*models.GarageBucketInfo, error) {
+		return &models.GarageBucketInfo{ID: "id-1", GlobalAliases: aliases}, nil
+	}
+}
+
+func TestAddAlias_ReportsTheNameTheBucketHasNow(t *testing.T) {
+	app, admin := newBucketsTestApp(t)
+	admin.GetBucketInfoByAliasFn = bucketWithAliases("photos")
+	admin.AddBucketAliasFn = func(_ context.Context, id, alias string) (*models.GarageBucketInfo, error) {
+		if id != "id-1" || alias != "archive" {
+			t.Errorf("id = %q, alias = %q", id, alias)
+		}
+		return &models.GarageBucketInfo{ID: id, GlobalAliases: []string{"archive", "photos"}}, nil
+	}
+	resp := aliasRequest(t, app, http.MethodPost, "/buckets/photos/aliases", `{"alias":"archive"}`)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	var body struct {
+		Data models.BucketAliasesResponse `json:"data"`
+	}
+	decodeJSON(t, resp.Body, &body)
+	if body.Data.Name != "archive" || len(body.Data.GlobalAliases) != 2 {
+		t.Errorf("data = %+v", body.Data)
+	}
+}
+
+func TestAddAlias_PassesOnGarageReason(t *testing.T) {
+	app, admin := newBucketsTestApp(t)
+	admin.GetBucketInfoByAliasFn = bucketWithAliases("photos")
+	admin.AddBucketAliasFn = func(context.Context, string, string) (*models.GarageBucketInfo, error) {
+		return nil, errors.New("API returned status 400: {\n  \"code\": \"InvalidBucketName\",\n  \"message\": \"Invalid bucket name: Bad\\\"Name\",\n  \"region\": \"garage\"\n}")
+	}
+	resp := aliasRequest(t, app, http.MethodPost, "/buckets/photos/aliases", `{"alias":"Bad\"Name"}`)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	var body struct {
+		Error models.APIError `json:"error"`
+	}
+	decodeJSON(t, resp.Body, &body)
+	if body.Error.Message != `Invalid bucket name: Bad"Name` {
+		t.Errorf("message = %q", body.Error.Message)
+	}
+}
+
+func TestRemoveAlias_RefusesWithoutReachingGarage(t *testing.T) {
+	cases := []struct {
+		name    string
+		aliases []string
+		alias   string
+		want    int
+	}{
+		{"last alias, even with local ones left", []string{"photos"}, "photos", http.StatusBadRequest},
+		{"not an alias of this bucket", []string{"photos", "zebra"}, "other", http.StatusNotFound},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			app, admin := newBucketsTestApp(t)
+			admin.GetBucketInfoByAliasFn = bucketWithAliases(tc.aliases...)
+			admin.RemoveBucketAliasFn = func(context.Context, string, string) (*models.GarageBucketInfo, error) {
+				t.Error("reached Garage")
+				return nil, nil
+			}
+			if resp := aliasRequest(t, app, http.MethodDelete, "/buckets/photos/aliases/"+tc.alias, ""); resp.StatusCode != tc.want {
+				t.Errorf("status = %d, want %d", resp.StatusCode, tc.want)
+			}
+		})
+	}
+}
+
+func TestRemoveAlias_CanRemoveTheNameInTheURL(t *testing.T) {
+	app, admin := newBucketsTestApp(t)
+	admin.GetBucketInfoByAliasFn = bucketWithAliases("archive", "photos")
+	admin.RemoveBucketAliasFn = func(_ context.Context, id, _ string) (*models.GarageBucketInfo, error) {
+		return &models.GarageBucketInfo{ID: id, GlobalAliases: []string{"photos"}}, nil
+	}
+	resp := aliasRequest(t, app, http.MethodDelete, "/buckets/archive/aliases/archive", "")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	var body struct {
+		Data models.BucketAliasesResponse `json:"data"`
+	}
+	decodeJSON(t, resp.Body, &body)
+	if body.Data.Name != "photos" {
+		t.Errorf("name = %q", body.Data.Name)
+	}
+}
+
+func TestAddAlias_UnsupportedMissingBucketAndEmptyAlias(t *testing.T) {
+	app, admin := newBucketsTestApp(t)
+	admin.GetBucketInfoByAliasFn = bucketWithAliases("photos")
+	admin.AddBucketAliasFn = func(context.Context, string, string) (*models.GarageBucketInfo, error) {
+		return nil, services.ErrUnsupported
+	}
+	if resp := aliasRequest(t, app, http.MethodPost, "/buckets/photos/aliases", `{"alias":"x-y"}`); resp.StatusCode != http.StatusNotImplemented {
+		t.Errorf("v1: status = %d", resp.StatusCode)
+	}
+	if resp := aliasRequest(t, app, http.MethodPost, "/buckets/photos/aliases", `{}`); resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("empty alias: status = %d", resp.StatusCode)
+	}
+	admin.GetBucketInfoByAliasFn = func(context.Context, string) (*models.GarageBucketInfo, error) { return nil, nil }
+	if resp := aliasRequest(t, app, http.MethodPost, "/buckets/photos/aliases", `{"alias":"x-y"}`); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("missing bucket: status = %d", resp.StatusCode)
+	}
+}
+
+// Team access follows bucket names, so the alias itself has to be in the team's scope.
+func TestAliasRoutes_AliasMustBeInTheTeamsScope(t *testing.T) {
+	admin := &mocks.AdminMock{}
+	admin.GetBucketInfoByAliasFn = bucketWithAliases("backend-api", "frontend-api")
+	refuse := func(context.Context, string, string) (*models.GarageBucketInfo, error) {
+		t.Error("reached Garage")
+		return nil, nil
+	}
+	admin.AddBucketAliasFn, admin.RemoveBucketAliasFn = refuse, refuse
+	h := NewBucketHandler()
+	app := fiber.New()
+	app.Use(injectServices(admin, nil), func(c fiber.Ctx) error {
+		c.Locals(authz.SubjectLocalsKey, authz.Subject{
+			ID: "alice",
+			Bindings: []authz.Binding{{
+				BucketPrefixes: []string{"backend-"},
+				Permissions:    authz.PermSet{authz.PermBucketAliasAdd: {}, authz.PermBucketAliasRemove: {}},
+			}},
+		})
+		return c.Next()
+	})
+	app.Post("/buckets/:name/aliases", h.AddAlias)
+	app.Delete("/buckets/:name/aliases/:alias", h.RemoveAlias)
+
+	if resp := aliasRequest(t, app, http.MethodPost, "/buckets/backend-api/aliases", `{"alias":"frontend-new"}`); resp.StatusCode != http.StatusForbidden {
+		t.Errorf("add: status = %d", resp.StatusCode)
+	}
+	if resp := aliasRequest(t, app, http.MethodDelete, "/buckets/backend-api/aliases/frontend-api", ""); resp.StatusCode != http.StatusForbidden {
+		t.Errorf("remove: status = %d", resp.StatusCode)
 	}
 }

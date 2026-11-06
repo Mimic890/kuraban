@@ -82,7 +82,7 @@ The S3, block and RPC charts read Garage's `/metrics` endpoint using the cluster
 
 Garage admin API v2.5.0 features and fixes still missing from the UI:
 
-- [ ] Bucket aliases: add/remove (`AddBucketAlias`, `RemoveBucketAlias`).
+- [ ] Local bucket aliases: add/remove. Global ones are done, local ones are only shown.
 - [ ] Multi-bucket permission editor for a key: one table of all buckets with Read/Write/Owner, saved at once.
 - [ ] Cluster layout: view, assign zone/capacity, preview, apply, revert (`GetClusterLayout`, `UpdateClusterLayout`, `PreviewClusterLayoutChanges`, `ApplyClusterLayout`, `RevertClusterLayout`, `GetClusterLayoutHistory`, `ClusterLayoutSkipDeadNodes`).
 
