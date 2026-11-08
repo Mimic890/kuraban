@@ -12,6 +12,8 @@ import { useSettingsStore } from '@/store/settings-store';
 import { useTranslation } from '@/lib/i18n';
 import { garageApi } from '@/lib/api';
 import { useClusterHealth, useDashboardMetrics } from '@/hooks/useApi';
+import { useCapabilities } from '@/hooks/useCapabilities';
+import { usePermissions } from '@/hooks/usePermissions';
 import { refreshMs, telemetryKeys, useAppSettings, useTelemetryStatus, type TimeRange } from '@/hooks/useTelemetry';
 import type { MetricQuery } from '@/lib/telemetry';
 import { formatBytesValue, formatRelative, formatValue } from '@/lib/units';
@@ -176,6 +178,8 @@ export function Dashboard() {
   const healthQ = useClusterHealth(hasCluster);
   const metricsQ = useDashboardMetrics(hasCluster);
   const nodesQ = useNodeNames(hasCluster);
+  const { data: capabilities } = useCapabilities();
+  const { hasClusterPerm } = usePermissions();
 
   const interval = settingsQ.data?.settings.monitoring.interval_seconds ?? statusQ.data?.monitoring.interval_seconds;
   const thresholds = settingsQ.data?.settings.thresholds ?? { disk_warn_pct: 80, disk_crit_pct: 90, error_rate_warn_pct: 5, latency_warn_ms: 500 };
@@ -326,6 +330,12 @@ export function Dashboard() {
           />
 
           <div className="space-y-5 px-3 pt-3 md:px-4">
+            {capabilities?.features?.clusterLayout && hasClusterPerm('cluster.layout.read') && nodesQ.data?.layoutVersion === 0 && (
+              <StatusBanner tone="warn" icon={<AlertTriangle className="h-4 w-4" />}>
+                {t('dashboard.layout.empty')}{' '}
+                <Link to="/cluster?tab=layout" className="font-medium text-[var(--primary)] hover:underline">{t('dashboard.layout.assign')}</Link>
+              </StatusBanner>
+            )}
             {monitoring && !monitoring.enabled && (
               <StatusBanner tone="info" icon={<Info className="h-4 w-4" />}>
                 {t('dashboard.collector.disabled')}{' '}
