@@ -26,6 +26,18 @@ fi
 mkdir -p data garage/meta garage/data
 docker compose up -d --wait
 
+garage() { docker compose exec -T -e RUST_LOG=warn garage /garage "$@"; }
+
+# A new node stores nothing until it has a layout. An existing layout is left alone.
+layout=$(garage layout show)
+case "$layout" in
+  *"Current cluster layout version: 0"*)
+    node=$(garage node id -q | cut -d@ -f1)
+    garage layout assign -z dc1 -c 1G "$node" > /dev/null
+    garage layout apply --version 1 > /dev/null
+    ;;
+esac
+
 # Not sourced: .env sets UID, which is read-only where sh is bash.
 env_value() { sed -n "s/^$1=//p" .env; }
 cat <<EOF

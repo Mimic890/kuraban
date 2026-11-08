@@ -37,9 +37,7 @@ cd kuraban
 ./demo/up.sh
 ```
 
-The script generates secrets in `demo/.env`, starts a single-node Garage with Kuraban already connected to it, and prints the URL, username and password. Running it again keeps the existing secrets and data.
-
-A new Garage node stores nothing until it has a layout. Open the link in the banner on the dashboard, assign the node a zone and a capacity, and apply. You can then create buckets.
+The script generates secrets in `demo/.env`, starts a single-node Garage with Kuraban already connected to it, assigns the node a layout (zone `dc1`, capacity 1 GB), and prints the URL, username and password. You can create buckets right away. Running it again keeps the existing secrets, layout and data.
 
 This setup is for evaluation only. Stop it with `docker compose -f demo/compose.yml down`. To start over, also delete `demo/.env`, `demo/data`, `demo/garage/meta` and `demo/garage/data`.
 
