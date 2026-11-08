@@ -40,6 +40,8 @@ services:
       - KURABAN_GARAGE_ADMIN_ENDPOINT=http://garage:3903
       - KURABAN_GARAGE_REGION=garage
       - KURABAN_GARAGE_ADMIN_TOKEN=${GARAGE_ADMIN_TOKEN:?run ./up.sh}
+      - KURABAN_AUTH_ADMIN_USERNAME=${KURABAN_AUTH_ADMIN_USERNAME:?run ./up.sh}
+      - KURABAN_AUTH_ADMIN_PASSWORD=${KURABAN_AUTH_ADMIN_PASSWORD:?run ./up.sh}
     healthcheck:
       interval: 2s
     depends_on:
