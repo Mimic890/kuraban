@@ -176,8 +176,10 @@ export function Dashboard() {
   const settingsQ = useAppSettings(hasCluster);
   const statusQ = useTelemetryStatus(hasCluster ? 15_000 : false);
   const healthQ = useClusterHealth(hasCluster);
-  const metricsQ = useDashboardMetrics(hasCluster);
   const nodesQ = useNodeNames(hasCluster);
+  // Garage answers "Layout not ready" until the first layout. A failed status check still tries, for users who cannot read it.
+  const metricsReady = hasCluster && (nodesQ.isError || (nodesQ.data?.layoutVersion ?? 0) > 0);
+  const metricsQ = useDashboardMetrics(metricsReady);
   const { data: capabilities } = useCapabilities();
   const { hasClusterPerm } = usePermissions();
 
@@ -223,7 +225,7 @@ export function Dashboard() {
   const refreshAll = () => {
     void queryClient.invalidateQueries({ queryKey: telemetryKeys.all });
     void healthQ.refetch();
-    void metricsQ.refetch();
+    if (metricsReady) void metricsQ.refetch();
     void nodesQ.refetch();
   };
 
