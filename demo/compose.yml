@@ -1,0 +1,49 @@
+# Run ./up.sh instead of starting this directly: it creates the .env file.
+name: kuraban-demo
+
+services:
+  garage:
+    image: dxflrs/garage:v2.5.0
+    restart: unless-stopped
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      - GARAGE_RPC_SECRET=${GARAGE_RPC_SECRET:?run ./up.sh}
+      - GARAGE_ADMIN_TOKEN=${GARAGE_ADMIN_TOKEN:?run ./up.sh}
+    volumes:
+      - ./garage.toml:/etc/garage.toml:ro
+      - ./garage/meta:/var/lib/garage/meta
+      - ./garage/data:/var/lib/garage/data
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  kuraban:
+    image: ghcr.io/mimic890/kuraban:latest
+    restart: unless-stopped
+    user: "${UID:-1000}:${GID:-1000}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp]
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - KURABAN_SERVER_HOST=0.0.0.0
+      - KURABAN_SERVER_ENVIRONMENT=development
+      - KURABAN_SERVER_ROOT_URL=http://127.0.0.1:8080
+      - KURABAN_DATA_DIR=/app/data
+      - KURABAN_GARAGE_ENDPOINT=http://garage:3900
+      - KURABAN_GARAGE_ADMIN_ENDPOINT=http://garage:3903
+      - KURABAN_GARAGE_REGION=garage
+      - KURABAN_GARAGE_ADMIN_TOKEN=${GARAGE_ADMIN_TOKEN:?run ./up.sh}
+      - KURABAN_AUTH_ADMIN_USERNAME=${KURABAN_AUTH_ADMIN_USERNAME:?run ./up.sh}
+      - KURABAN_AUTH_ADMIN_PASSWORD=${KURABAN_AUTH_ADMIN_PASSWORD:?run ./up.sh}
+    healthcheck:
+      interval: 2s
+    depends_on:
+      garage:
+        condition: service_healthy

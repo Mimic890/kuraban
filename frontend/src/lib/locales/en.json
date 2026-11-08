@@ -841,6 +841,8 @@
   "dashboard.collector.noMetrics": "Garage /metrics endpoint is not reachable",
   "dashboard.collector.noMetricsHint": "S3, block and RPC charts need it. Set metrics_token in garage.toml to the admin token (or leave it unset) so Kuraban can read metrics. Cluster, disk and bucket charts keep working.",
   "dashboard.collector.partial": "Last collection was incomplete",
+  "dashboard.layout.empty": "This cluster has no layout yet, so it cannot store anything.",
+  "dashboard.layout.assign": "Assign a layout",
   "dashboard.collector.warming": "Collecting the first samples — charts fill in within {{interval}} seconds.",
   "dashboard.node.address": "Address",
   "dashboard.node.capacity": "Capacity",

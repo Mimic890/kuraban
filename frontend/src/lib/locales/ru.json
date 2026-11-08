@@ -841,6 +841,8 @@
   "dashboard.collector.noMetrics": "Эндпоинт /metrics в Garage недоступен",
   "dashboard.collector.noMetricsHint": "Он нужен для графиков S3, блоков и RPC. Укажите в garage.toml metrics_token равным admin-токену (или не задавайте его), чтобы Kuraban мог читать метрики. Графики кластера, дисков и бакетов работают и без него.",
   "dashboard.collector.partial": "Последний сбор прошёл не полностью",
+  "dashboard.layout.empty": "У этого кластера ещё нет раскладки, поэтому он не может ничего хранить.",
+  "dashboard.layout.assign": "Назначить раскладку",
   "dashboard.collector.warming": "Собираем первые точки — графики заполнятся в течение {{interval}} секунд.",
   "dashboard.node.address": "Адрес",
   "dashboard.node.capacity": "Ёмкость",

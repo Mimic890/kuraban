@@ -10,7 +10,7 @@ import type {ClusterNode, LocalNodeInfo, NodeStatistics} from '@/types';
 import {useState} from 'react';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { useClusterStore } from '@/store/cluster-store';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from '@/lib/i18n';
 import { queryKeys } from '@/lib/query-client';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -43,6 +43,7 @@ function UnsupportedFeatureCard({ title, description }: { title: string; descrip
 
 export function Cluster() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
   const { t, language } = useTranslation();
   const number = new Intl.NumberFormat(language);
   const formatLocalizedBytes = (bytes: number) => formatBytes(bytes).replace(/^[\d.]+/, (value) => number.format(Number(value)));
@@ -236,7 +237,7 @@ export function Cluster() {
         </div>
 
         {/* Tabs for different views */}
-        <Tabs defaultValue="nodes" className="space-y-4">
+        <Tabs defaultValue={searchParams.get('tab') ?? 'nodes'} className="space-y-4">
           <TabsList className="overflow-x-auto overflow-y-hidden">
             <TabsTrigger value="nodes">{t('cluster.nodes_tab')}</TabsTrigger>
             {showLayout && <TabsTrigger value="layout">{t('cluster.layout_tab')}</TabsTrigger>}

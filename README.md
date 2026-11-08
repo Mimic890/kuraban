@@ -27,18 +27,35 @@ Garage 2.5.0 or newer is recommended. Older versions work, but without its batch
 
 ## Quick start
 
-Requirements: Docker with Compose v2 and a running Garage cluster. To set up a local Garage for testing, see [docs/garage-setup.md](docs/garage-setup.md).
+### Try it with a bundled Garage
+
+You need Docker with Compose v2 and Git.
+
+```sh
+git clone https://github.com/Mimic890/kuraban.git
+cd kuraban
+./demo/up.sh
+```
+
+The script generates secrets in `demo/.env`, starts a single-node Garage with Kuraban already connected to it, assigns the node a layout (zone `dc1`, capacity 1 GB), and prints the URL, username and password. You can create buckets right away. Running it again keeps the existing secrets, layout and data.
+
+This setup is for evaluation only. Stop it with `docker compose -f demo/compose.yml down`. To start over, also delete `demo/.env`, `demo/data`, `demo/garage/meta` and `demo/garage/data`.
+
+### Use your own Garage
+
+You need Docker with Compose v2 and a running Garage cluster. To set up a local one by hand, see [docs/garage-setup.md](docs/garage-setup.md).
 
 1. Download the example Compose file:
 
-   ```bash
-   curl -o docker-compose.yml https://raw.githubusercontent.com/Mimic890/kuraban/main/docker-compose.example.yml
+   ```sh
+   curl -o compose.yml https://raw.githubusercontent.com/Mimic890/kuraban/main/docker-compose.example.yml
    ```
 
-2. Start the container:
+2. Create the data directory and start the container:
 
-   ```bash
-   export KURABAN_AUTH_BOOTSTRAP_TOKEN="$(openssl rand -hex 32)"
+   ```sh
+   mkdir -p data
+   printf 'UID=%s\nGID=%s\n' "$(id -u)" "$(id -g)" > .env
    docker compose up -d
    ```
 
