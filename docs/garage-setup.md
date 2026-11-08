@@ -35,7 +35,7 @@ openssl rand -hex 32   # rpc_secret
 openssl rand -hex 32   # admin_token
 ```
 
-`docker-compose.yml`:
+`compose.yml`:
 
 ```yaml
 services:
@@ -44,16 +44,17 @@ services:
     restart: unless-stopped
     volumes:
       - ./garage.toml:/etc/garage.toml:ro
-      - garage_meta:/var/lib/garage/meta
-      - garage_data:/var/lib/garage/data
+      - ./garage/meta:/var/lib/garage/meta
+      - ./garage/data:/var/lib/garage/data
 
   kuraban:
     image: ghcr.io/mimic890/kuraban:latest
     restart: unless-stopped
+    user: "${UID:-1000}:${GID:-1000}"
     ports:
       - "127.0.0.1:8080:8080"
     volumes:
-      - kuraban_data:/app/data
+      - ./data:/app/data
     environment:
       - KURABAN_SERVER_ENVIRONMENT=development
       - KURABAN_SERVER_ROOT_URL=http://localhost:8080
@@ -62,11 +63,6 @@ services:
       - KURABAN_GARAGE_ADMIN_TOKEN=REPLACE_WITH_ADMIN_TOKEN
     depends_on:
       - garage
-
-volumes:
-  garage_meta:
-  garage_data:
-  kuraban_data:
 ```
 
 Use the same `admin_token` in both files.
@@ -85,6 +81,8 @@ docker compose exec -T garage /garage layout apply --version 1
 ## 3. Start the UI
 
 ```bash
+mkdir -p data
+printf 'UID=%s\nGID=%s\n' "$(id -u)" "$(id -g)" > .env
 docker compose up -d kuraban
 ```
 
