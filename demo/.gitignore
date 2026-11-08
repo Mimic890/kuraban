@@ -1,0 +1,5 @@
+/.env
+/data/
+/garage/meta/
+/garage/data/
+!/garage.toml
