@@ -25,7 +25,6 @@ services:
       - KURABAN_LOGGING_LEVEL=info # Options: trace, debug, info, warn, error
       # Monitoring interval/retention, thresholds and IP allowlists are set in
       # the web UI (Settings) and stored in /app/data/kuraban.db.
-      - KURABAN_AUTH_BOOTSTRAP_TOKEN=${KURABAN_AUTH_BOOTSTRAP_TOKEN:?set a strong one-time bootstrap token}
       # Optional first-run Garage cluster bootstrap. Keep the token out of git;
       # use an env file or Docker secret in real deployments.
       # - KURABAN_GARAGE_ENDPOINT=http://garage:3900

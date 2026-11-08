@@ -38,7 +38,6 @@ Requirements: Docker with Compose v2 and a running Garage cluster. To set up a l
 2. Start the container:
 
    ```bash
-   export KURABAN_AUTH_BOOTSTRAP_TOKEN="$(openssl rand -hex 32)"
    docker compose up -d
    ```
 

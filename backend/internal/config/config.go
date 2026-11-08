@@ -48,12 +48,11 @@ type ServerConfig struct {
 
 // AuthConfig contains authentication configuration
 type AuthConfig struct {
-	Admin          AdminAuthConfig `mapstructure:"admin"`
-	OIDC           OIDCConfig      `mapstructure:"oidc"`
-	Token          TokenAuthConfig `mapstructure:"token"`
-	BootstrapToken string          `mapstructure:"bootstrap_token"`
-	JWTPrivKey     string          `mapstructure:"jwt_private_key"` // Ed25519 private key in PEM format for JWT signing (64 bytes)
-	MetricsPublic  bool            `mapstructure:"metrics_public"`  // Expose Prometheus metrics at top-level /metrics without auth
+	Admin         AdminAuthConfig `mapstructure:"admin"`
+	OIDC          OIDCConfig      `mapstructure:"oidc"`
+	Token         TokenAuthConfig `mapstructure:"token"`
+	JWTPrivKey    string          `mapstructure:"jwt_private_key"` // Ed25519 private key in PEM format for JWT signing (64 bytes)
+	MetricsPublic bool            `mapstructure:"metrics_public"`  // Expose Prometheus metrics at top-level /metrics without auth
 
 	// Optional in-handler protection for the public /metrics endpoint.
 	// MetricsSharedSecret, when set, requires the caller to present it via the
@@ -277,7 +276,6 @@ func bindEnvVars() {
 
 	// Token auth config
 	viper.BindEnv("auth.token.enabled", "KURABAN_AUTH_TOKEN_ENABLED")
-	viper.BindEnv("auth.bootstrap_token", "KURABAN_AUTH_BOOTSTRAP_TOKEN")
 
 	// OIDC config
 	viper.BindEnv("auth.oidc.enabled", "KURABAN_AUTH_OIDC_ENABLED")
@@ -326,7 +324,6 @@ func bindEnvVars() {
 // store in a Kubernetes Secret or Docker secret. Non-sensitive config (host,
 // port, endpoints, etc.) is excluded.
 var fileBackedEnvVars = map[string]string{
-	"KURABAN_AUTH_BOOTSTRAP_TOKEN":       "auth.bootstrap_token",
 	"KURABAN_AUTH_ADMIN_USERNAME":        "auth.admin.username",
 	"KURABAN_AUTH_ADMIN_PASSWORD":        "auth.admin.password",
 	"KURABAN_AUTH_JWT_PRIVATE_KEY":       "auth.jwt_private_key",

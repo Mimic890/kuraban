@@ -70,7 +70,6 @@ Clusters provisioned from `KURABAN_GARAGE_*` variables are trusted and never che
 | `KURABAN_AUTH_ADMIN_ENABLED` | `false` | Enable the admin login defined in config (username and password from the variables above). |
 | `KURABAN_AUTH_TOKEN_ENABLED` | `false` | Allow logging in with the Garage admin token. |
 | `KURABAN_AUTH_JWT_PRIVATE_KEY` | random | Ed25519 private key in PEM used to sign sessions. Without it a new key is generated on every start, so all users are logged out after a restart and replicas can't share sessions. |
-| `KURABAN_AUTH_BOOTSTRAP_TOKEN` | | One-time bootstrap token. |
 
 ### OIDC
 
@@ -130,7 +129,6 @@ Only needed when the frontend is served from a different origin than the API.
 
 The following variables also accept a `_FILE` suffix pointing to a file, for use with Docker or Kubernetes secrets. The file content (without the trailing newline) takes precedence over the plain variable.
 
-- `KURABAN_AUTH_BOOTSTRAP_TOKEN`
 - `KURABAN_AUTH_ADMIN_USERNAME`, `KURABAN_AUTH_ADMIN_PASSWORD`
 - `KURABAN_AUTH_JWT_PRIVATE_KEY`
 - `KURABAN_AUTH_OIDC_CLIENT_ID`, `KURABAN_AUTH_OIDC_CLIENT_SECRET`
